@@ -1,130 +1,83 @@
+"""
+Task handlers for the research AI bot.
+
+This module contains all handlers for task-related operations including
+creation, display, and management of research tasks.
+"""
+
 from aiogram import Router, F
 from aiogram.filters import Command, StateFilter
-from aiogram.types import (
-    Message,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    CallbackQuery,
-)
-
-
-from aiogram.enums import ParseMode
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-import re
-from textwrap import dedent
-from datetime import datetime
 
-from bot.utils import cut_text, escape_html
-from shared.db import (
-    get_or_create_user,
-    get_user_tasks,
-    create_user_task_with_queue,
-    check_user_can_create_task,
-    check_rate_limit,
-    get_or_create_task_statistics,
-    list_recent_analyses_for_user,
-    update_queue_positions,
-    UserPlan,
-    TaskStatus,
-    # Integration functions
-    get_user_task_results,
+from bot.handlers.utils.messages import send_or_edit_message, safe_message_from_callback
+from bot.handlers.utils.task_operations import (
+    rate_limit_check,
+    create_task_for_user,
+    start_simple_task_creation,
+    process_task_description,
+    cancel_task_creation,
+    TaskCreationStates,
 )
+from bot.handlers.utils.task_display import (
+    show_detailed_status,
+    show_task_selection,
+    show_task_results,
+    show_individual_result,
+    show_additional_sources,
+    show_task_details,
+)
+from bot.handlers.utils.validation import validate_user_access
+from shared.db import get_or_create_user, get_user_tasks
 from shared.logging import get_logger
-
 
 router = Router(name="tasks")
 logger = get_logger(__name__)
 
 
-class TaskCreationStates(StatesGroup):
-    """States for task creation flow."""
-
-    waiting_for_description = State()
-
-
-def format_time_estimate(seconds: float) -> str:
-    """Format time estimate in human readable format.
-
-    :param seconds: Time in seconds
-    :returns: Formatted time string
-    """
-    if seconds < 60:
-        return f"{int(seconds)}s"
-    elif seconds < 3600:
-        return f"{int(seconds // 60)}m {int(seconds % 60)}s"
-    else:
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        return f"{hours}h {minutes}m"
+# Menu handlers
+@router.message(F.text == "🔬 New Task")
+async def menu_new_task_handler(message: Message, state: FSMContext) -> None:
+    """Handle new task button from main menu."""
+    await start_simple_task_creation(message, state)
 
 
-def get_plan_display_name(plan: UserPlan) -> str:
-    """Get display name for user plan.
-
-    :param plan: User plan enum
-    :returns: Display name
-    """
-    return "🆓 Free" if plan == UserPlan.FREE else "⭐ Premium"
+@router.message(F.text == "📊 Status")
+async def menu_status_handler(message: Message) -> None:
+    """Handle status button from main menu."""
+    await command_status_handler(message)
 
 
-def get_status_emoji(status) -> str:
-    """Get emoji for task status.
-
-    :param status: Task status (enum or string)
-    :returns: Emoji string
-    """
-    # Handle enum by getting its value
-    if hasattr(status, "value"):
-        status_str = status.value.lower()
-    else:
-        status_str = str(status).lower()
-
-    return {
-        "queued": "⏳",
-        "processing": "🔄",
-        "completed": "✅",
-        "failed": "❌",
-        "cancelled": "🚫",
-        "paused": "⏸️",
-        "active": "🔄",
-    }.get(status_str, "❓")
+@router.message(F.text == "📚 Results")
+async def menu_history_handler(message: Message) -> None:
+    """Handle results button from main menu."""
+    await command_history_handler(message)
 
 
-async def rate_limit_check(message: Message, action_type: str) -> bool:
-    """Check rate limits for user action and send error message if exceeded.
+# Command handlers
+@router.callback_query(F.data == "new_task_wizard")
+async def callback_new_task_wizard(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle new task wizard callback."""
+    message = safe_message_from_callback(callback.message)
+    if not message:
+        await callback.answer("❌ Error: message not accessible.")
+        return
 
-    :param message: Telegram message
-    :param action_type: Type of action being performed
-    :returns: True if allowed, False if rate limited
-    """
-    if not message.from_user:
-        return False
-
-    user = await get_or_create_user(message.from_user.id)
-    allowed, reason = await check_rate_limit(user.id, action_type)
-
-    if not allowed:
-        await message.answer(
-            f"🚫 <b>Rate limit exceeded!</b>\n\n{escape_html(reason)}\n\n"
-            "Please wait before trying again.",
-            parse_mode=ParseMode.HTML,
-        )
-        logger.warning(f"Rate limit exceeded for user {user.telegram_id}: {reason}")
-
-    return allowed
+    await start_simple_task_creation(message, state)
+    await callback.answer()
 
 
-@router.message(Command("task"))
+@router.message(Command("create"))
 async def command_create_task(message: Message, state: FSMContext) -> None:
-    """Create a new autonomous search task: /task <description> or /task to start interactive mode."""
-    try:
-        if not message.from_user:
-            await message.answer("❌ Error: could not determine user.")
-            return
+    """Create new research task with optional description."""
+    args = (message.text or "").split()[1:]  # Remove command part
 
-        # Rate limiting check
-        if not await rate_limit_check(message, "task_create"):
+    if args:
+        description = " ".join(args)
+        if not message.from_user:
+            await send_or_edit_message(
+                message, "❌ Error: could not determine user.", auto_edit_recent=True
+            )
             return
 
         user = await get_or_create_user(
@@ -134,617 +87,646 @@ async def command_create_task(message: Message, state: FSMContext) -> None:
             last_name=message.from_user.last_name,
         )
 
-        text = message.text or ""
-
-        # Check if description is provided directly
-        m = re.match(r"/task\s+\"([^\"]+)\"\s*(.*)$", text, re.DOTALL)
-        if m:
-            # Direct task creation with description in quotes
-            description = m.group(1).strip()
-            await create_task_for_user(user, description, message)
-            return
-
-        # Check for description without quotes
-        m = re.match(r"/task\s+(.+)$", text, re.DOTALL)
-        if m:
-            # Direct task creation with description (no quotes)
-            description = m.group(1).strip()
-            await create_task_for_user(user, description, message)
-            return
-
-        # No description provided - start interactive mode
-        await start_interactive_task_creation(user, message, state)
-
-    except Exception as error:
-        logger.error(f"Error in /task command: {error}")
-        await message.answer("❌ An error occurred while processing your request.")
-
-
-async def create_task_for_user(user, description: str, message: Message) -> None:
-    """Create task for user with full validation and queue management.
-
-    :param user: User instance
-    :param description: Task description
-    :param message: Telegram message
-    """
-    # Check if user can create task
-    can_create, reason = await check_user_can_create_task(user)
-    if not can_create:
-        await message.answer(
-            f"🚫 <b>Cannot create task</b>\n\n{escape_html(reason)}",
-            parse_mode=ParseMode.HTML,
-        )
-        return
-
-    # Validate description
-    if len(description) < 5:
-        await message.answer(
-            "❌ <b>Description too short</b>\n\n"
-            "Please provide a description with at least 5 characters.",
-            parse_mode=ParseMode.HTML,
-        )
-        return
-
-    if len(description) > 1000:
-        await message.answer(
-            "❌ <b>Description too long</b>\n\n"
-            "Please keep your description under 1000 characters.",
-            parse_mode=ParseMode.HTML,
-        )
-        return
-
-    try:
-        # Create task and add to queue
-        task, queue_entry = await create_user_task_with_queue(user, description)
-
-        # Get statistics for estimates
-        stats = await get_or_create_task_statistics()
-
-        # Calculate remaining slots
-        user_tasks = await get_user_tasks(user.id)
-        active_tasks = len(
-            [t for t in user_tasks if str(t.status) in ["queued", "processing"]]
-        )
-        slots_left = user.concurrent_task_limit - active_tasks
-
-        # Format estimated time
-        estimated_time = format_time_estimate(
-            stats.median_processing_time * queue_entry.queue_position
-        )
-
-        # Update queue positions
-        await update_queue_positions()
-
-        await message.answer(
-            dedent(
-                f"""
-                ✅ <b>Task #{task.id} created successfully!</b>
-                
-                📝 <b>Description:</b> {escape_html(cut_text(description, 200))}
-                
-                📊 <b>Your Plan:</b> {get_plan_display_name(user.plan)}
-                🎯 <b>Max Cycles:</b> {task.max_cycles}
-                
-                📍 <b>Queue Position:</b> #{queue_entry.queue_position}
-                📈 <b>Task Slots Left:</b> {slots_left}/{user.concurrent_task_limit}
-                ⏱️ <b>Estimated Start:</b> {estimated_time}
-                
-                🏃‍♂️ <b>Daily Tasks:</b> {user.daily_tasks_created}/{user.daily_task_limit}
-                
-                Use /status to check your tasks progress.
-                """
-            ),
-            parse_mode=ParseMode.HTML,
-        )
-
-        logger.info(
-            f"User {user.telegram_id} created task {task.id}: {description[:100]}"
-        )
-
-    except Exception as error:
-        logger.error(f"Error creating task for user {user.telegram_id}: {error}")
-        await message.answer("❌ An error occurred while creating the task.")
-
-
-async def start_interactive_task_creation(
-    user, message: Message, state: FSMContext
-) -> None:
-    """Start interactive task creation flow.
-
-    :param user: User instance
-    :param message: Telegram message
-    :param state: FSM context
-    """
-    # Check if user can create task
-    can_create, reason = await check_user_can_create_task(user)
-    if not can_create:
-        await message.answer(
-            f"🚫 <b>Cannot create task</b>\n\n{escape_html(reason)}",
-            parse_mode=ParseMode.HTML,
-        )
-        return
-
-    # Create cancel keyboard
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="❌ Cancel", callback_data="cancel_task_creation"
-                )
-            ]
-        ]
-    )
-
-    await message.answer(
-        dedent(
-            f"""
-            📝 <b>Create New Task</b>
-            
-            👋 Hi! Please send me the description for your research task.
-            
-            📊 <b>Your Plan:</b> {get_plan_display_name(user.plan)}
-            🎯 <b>Max Cycles:</b> {100 if user.plan == UserPlan.PREMIUM else 5}
-            🏃‍♂️ <b>Daily Tasks:</b> {user.daily_tasks_created}/{user.daily_task_limit}
-            📈 <b>Concurrent Slots:</b> {user.concurrent_task_limit}
-            
-            <b>Examples:</b>
-            • "Latest advances in quantum computing"
-            • "Machine learning applications in healthcare"
-            • "Sustainable energy storage technologies"
-            
-            <i>Your description should be 5-1000 characters long.</i>
-            """
-        ),
-        reply_markup=keyboard,
-        parse_mode=ParseMode.HTML,
-    )
-
-    await state.set_state(TaskCreationStates.waiting_for_description)
-
-
-@router.callback_query(F.data == "cancel_task_creation")
-async def cancel_task_creation(callback: CallbackQuery, state: FSMContext) -> None:
-    """Cancel task creation process."""
-    await state.clear()
-    try:
-        if callback.message:
-            await callback.message.edit_text(  # type: ignore
-                "❌ <b>Task creation cancelled</b>", parse_mode=ParseMode.HTML
-            )
-    except Exception:
-        pass  # Message might be inaccessible
-    await callback.answer()
+        await create_task_for_user(user, description, message)
+    else:
+        await start_simple_task_creation(message, state)
 
 
 @router.message(StateFilter(TaskCreationStates.waiting_for_description))
-async def process_task_description(message: Message, state: FSMContext) -> None:
-    """Process task description in interactive mode."""
-    if not message.from_user or not message.text:
-        await message.answer("❌ Please send a text description.")
-        return
+async def process_task_description_handler(message: Message, state: FSMContext) -> None:
+    """Process task description input."""
+    await process_task_description(message, state)
 
-    description = message.text.strip()
 
-    user = await get_or_create_user(message.from_user.id)
-    await create_task_for_user(user, description, message)
-    await state.clear()
+@router.message(Command("cancel"))
+@router.message(F.text.lower().in_(["cancel", "отмена"]))
+async def cancel_task_creation_handler(message: Message, state: FSMContext) -> None:
+    """Cancel task creation."""
+    await cancel_task_creation(message, state)
 
 
 @router.message(Command("status"))
 async def command_status_handler(message: Message) -> None:
-    """Show current task status with enhanced information."""
+    """Show interactive task status with detailed information."""
     try:
-        if not message.from_user:
-            await message.answer("❌ Error: could not determine user.")
+        is_valid, error_msg = await validate_user_access(message)
+        if not is_valid:
+            await send_or_edit_message(message, error_msg, auto_edit_recent=True)
             return
 
         # Rate limiting check
         if not await rate_limit_check(message, "command"):
             return
 
-        user = await get_or_create_user(message.from_user.id)
-        user_tasks = await get_user_tasks(user.id)
-
-        if not user_tasks:
-            await message.answer(
-                dedent(
-                    f"""
-                    ⚠️ <b>No tasks found!</b>
-                    
-                    📊 <b>Your Plan:</b> {get_plan_display_name(user.plan)}
-                    🏃‍♂️ <b>Daily Tasks:</b> {user.daily_tasks_created}/{user.daily_task_limit}
-                    📈 <b>Concurrent Slots:</b> {user.concurrent_task_limit}
-                    
-                    To create a new task, use:
-                    <code>/task "your research description"</code>
-                    
-                    Or simply type <code>/task</code> for interactive mode.
-                    """
-                ),
-                parse_mode=ParseMode.HTML,
-            )
-            return
-
-        # Group tasks by status
-        active_tasks = [
-            t
-            for t in user_tasks
-            if t.status in [TaskStatus.QUEUED, TaskStatus.PROCESSING]
-        ]
-        completed_tasks = [t for t in user_tasks if t.status == TaskStatus.COMPLETED]
-        failed_tasks = [t for t in user_tasks if t.status == TaskStatus.FAILED]
-        other_tasks = [
-            t
-            for t in user_tasks
-            if t.status
-            not in [
-                TaskStatus.QUEUED,
-                TaskStatus.PROCESSING,
-                TaskStatus.COMPLETED,
-                TaskStatus.FAILED,
-            ]
-        ]
-
-        status_text = dedent(
-            f"""
-            📊 <b>Task Status Dashboard</b>
-            
-            👤 <b>User:</b> {escape_html(user.first_name or "User")} ({get_plan_display_name(user.plan)})
-            🏃‍♂️ <b>Daily Usage:</b> {user.daily_tasks_created}/{user.daily_task_limit}
-            📈 <b>Active Slots:</b> {len(active_tasks)}/{user.concurrent_task_limit}
-            """
-        )
-
-        # Show active tasks
-        if active_tasks:
-            status_text += "\n🔄 <b>Active Tasks:</b>\n"
-            for task in active_tasks[:5]:  # Show max 5 active tasks
-                emoji = get_status_emoji(task.status)
-                cycles = f"{task.cycles_completed}/{task.max_cycles}"
-                status_text += f"{emoji} <b>#{task.id}</b> {escape_html(cut_text(task.description, 40))}\n"
-                status_text += f"   Cycles: {cycles} | Status: {task.status}\n"
-
-                # Show queue information if available through eager loading
-                if hasattr(task, "queue_entry") and task.queue_entry:
-                    try:
-                        if task.queue_entry.queue_position:
-                            status_text += f"   Queue position: #{task.queue_entry.queue_position}\n"
-                        if task.queue_entry.estimated_start_time:
-                            est_time = (
-                                task.queue_entry.estimated_start_time - datetime.now()
-                            )
-                            if est_time.total_seconds() > 0:
-                                status_text += f"   Est. start: {format_time_estimate(est_time.total_seconds())}\n"
-                            else:
-                                status_text += "   Est. start: Now\n"
-                    except Exception:
-                        # Skip queue info if not available
-                        pass
-                status_text += "\n"
-
-        # Show completed tasks summary
-        if completed_tasks:
-            recent_completed = sorted(
-                completed_tasks,
-                key=lambda t: t.updated_at or datetime.now(),
-                reverse=True,
-            )[:3]
-            status_text += (
-                f"\n✅ <b>Recent Completed ({len(completed_tasks)} total):</b>\n"
-            )
-            for task in recent_completed:
-                status_text += f"✅ <b>#{task.id}</b> {escape_html(cut_text(task.description, 40))}\n"
-                status_text += (
-                    f"   Cycles: {task.cycles_completed}/{task.max_cycles}\n\n"
-                )
-
-        # Show failed tasks if any
-        if failed_tasks:
-            status_text += f"\n❌ <b>Failed Tasks:</b> {len(failed_tasks)}\n"
-
-        # Show other tasks if any
-        if other_tasks:
-            status_text += f"\n⏸️ <b>Other Tasks:</b> {len(other_tasks)}\n"
-
-        # Add footer with commands
-        status_text += dedent(
-            """
-            
-            📚 <b>Commands:</b>
-            /history - View task results
-            /task - Create new task
-            """
-        )
-
-        await message.answer(status_text, parse_mode=ParseMode.HTML)
+        user = await get_or_create_user(message.from_user.id)  # type: ignore
+        await show_detailed_status(
+            message, user, edit_mode=False
+        )  # Allow auto-edit of recent message
 
     except Exception as e:
         logger.error(f"Error in /status command: {e}")
-        await message.answer("❌ An error occurred while getting status.")
+        error_text = "❌ An error occurred while getting status."
+        await send_or_edit_message(message, error_text, auto_edit_recent=True)
 
 
 @router.message(Command("history"))
 async def command_history_handler(message: Message) -> None:
-    """Show task history with selection and pagination."""
+    """Show task selection for results."""
     try:
-        if not message.from_user:
-            await message.answer("❌ Error: could not determine user.")
+        is_valid, error_msg = await validate_user_access(message)
+        if not is_valid:
+            await send_or_edit_message(message, error_msg, auto_edit_recent=True)
             return
 
         # Rate limiting check
         if not await rate_limit_check(message, "command"):
             return
 
-        user = await get_or_create_user(message.from_user.id)
-        user_tasks = await get_user_tasks(user.id)
-
-        if not user_tasks:
-            await message.answer(
-                dedent(
-                    """
-                    ⚠️ <b>No tasks found!</b>
-                    
-                    Create your first task to see results here:
-                    <code>/task "your research description"</code>
-                    """
-                ),
-                parse_mode=ParseMode.HTML,
-            )
-            return
-
-        # Filter tasks that have completed or are active
-        relevant_tasks = [
-            t
-            for t in user_tasks
-            if t.status
-            in [TaskStatus.COMPLETED, TaskStatus.PROCESSING, TaskStatus.FAILED]
-        ]
-
-        if not relevant_tasks:
-            await message.answer(
-                dedent(
-                    """
-                    ⚠️ <b>No completed tasks found!</b>
-                    
-                    Your tasks are still processing or haven't started yet.
-                    Use /status to check current progress.
-                    """
-                ),
-                parse_mode=ParseMode.HTML,
-            )
-            return
-
-        # Create task selection keyboard
-        keyboard_buttons = []
-        for task in relevant_tasks[:10]:  # Show max 10 tasks
-            emoji = get_status_emoji(task.status)
-            button_text = f"{emoji} #{task.id}: {cut_text(task.description, 25)}"
-            callback_data = f"history_task_{task.id}"
-            keyboard_buttons.append(
-                [InlineKeyboardButton(text=button_text, callback_data=callback_data)]
-            )
-
-        # Add recent analyses option
-        keyboard_buttons.append(
-            [
-                InlineKeyboardButton(
-                    text="📊 Recent Analyses (All Tasks)",
-                    callback_data="history_recent_all",
-                )
-            ]
-        )
-
-        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-
-        await message.answer(
-            dedent(
-                f"""
-                📚 <b>Task History</b>
-                
-                Select a task to view its detailed results:
-                
-                📊 <b>Your Stats:</b>
-                • Total tasks: {len(user_tasks)}
-                • Completed: {len([t for t in user_tasks if t.status == TaskStatus.COMPLETED])}
-                • Processing: {len([t for t in user_tasks if t.status == TaskStatus.PROCESSING])}
-                • Failed: {len([t for t in user_tasks if t.status == TaskStatus.FAILED])}
-                """
-            ),
-            reply_markup=keyboard,
-            parse_mode=ParseMode.HTML,
-        )
+        user = await get_or_create_user(message.from_user.id)  # type: ignore
+        await show_task_selection(
+            message, user, edit_mode=False
+        )  # Allow auto-edit of recent message
 
     except Exception as e:
         logger.error(f"Error in /history command: {e}")
-        await message.answer("❌ An error occurred while getting history.")
+        error_text = "❌ An error occurred while getting results."
+        await send_or_edit_message(message, error_text, auto_edit_recent=True)
 
 
-@router.callback_query(F.data.startswith("history_task_"))
-async def show_task_history(callback: CallbackQuery) -> None:
-    """Show detailed history for a specific task."""
+# Callback handlers for interactive features
+@router.callback_query(F.data == "refresh_status")
+async def handle_refresh_status(callback: CallbackQuery) -> None:
+    """Handle status refresh button."""
+    if not callback.from_user:
+        await callback.answer("❌ Error: could not determine user.")
+        return
+
     try:
-        if not callback.data:
-            await callback.answer("❌ Invalid callback data.")
-            return
-        task_id = int(callback.data.split("_")[-1])
+        user = await get_or_create_user(callback.from_user.id)
 
-        if not callback.from_user:
-            await callback.answer("❌ Error: could not determine user.")
+        # Get the message for editing
+        status_message = safe_message_from_callback(callback.message)
+        if status_message:
+            # Use edit_mode to minimize new message creation
+            await show_detailed_status(status_message, user, edit_mode=True)
+            await callback.answer("✅ Status updated!")
+        else:
+            await callback.answer("❌ Error: message not accessible.")
+    except Exception as e:
+        logger.error(f"Error in refresh_status handler: {e}")
+        await callback.answer("❌ Error updating status")
+
+
+@router.callback_query(F.data == "show_results_list")
+async def handle_show_results_list(callback: CallbackQuery) -> None:
+    """Show task selection for viewing results."""
+    if not callback.from_user:
+        await callback.answer("❌ Error: could not determine user.")
+        return
+
+    try:
+        user = await get_or_create_user(callback.from_user.id)
+        message = safe_message_from_callback(callback.message)
+
+        if message:
+            await show_task_selection(message, user, 0, edit_mode=True)
+            await callback.answer()
+        else:
+            await callback.answer("❌ Error: message not accessible.")
+    except Exception as e:
+        logger.error(f"Error in show_results_list handler: {e}")
+        await callback.answer("❌ Error loading results list.")
+
+
+@router.callback_query(F.data.startswith("task_details_"))
+async def handle_task_details_callback(callback: CallbackQuery) -> None:
+    """Show detailed information about a specific task."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract task ID with validation
+        parts = callback.data.split("_")
+        if len(parts) < 3 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid task data.")
+            return
+
+        task_id = int(parts[-1])
+        if task_id <= 0:
+            await callback.answer("❌ Error: invalid task ID.")
+            return
+
+        user = await get_or_create_user(callback.from_user.id)
+        message = safe_message_from_callback(callback.message)
+
+        if not message:
+            await callback.answer("❌ Error: message not accessible.")
+            return
+
+        await show_task_details(message, user, task_id)
+        await callback.answer()
+
+    except ValueError as e:
+        logger.error(f"Error parsing task ID: {e}")
+        await callback.answer("❌ Error: invalid task ID.")
+    except Exception as e:
+        logger.error(f"Error in task_details handler: {e}")
+        await callback.answer("❌ Error loading task details.")
+
+
+@router.callback_query(F.data.startswith("view_task_results_"))
+async def handle_view_task_results(callback: CallbackQuery) -> None:
+    """View results for a specific task from task details."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract task ID with validation
+        parts = callback.data.split("_")
+        if len(parts) < 4 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid task data.")
+            return
+
+        task_id = int(parts[-1])
+        if task_id <= 0:
+            await callback.answer("❌ Error: invalid task ID.")
+            return
+
+        user = await get_or_create_user(callback.from_user.id)
+        message = safe_message_from_callback(callback.message)
+
+        if not message:
+            await callback.answer("❌ Error: message not accessible.")
+            return
+
+        # Check if task belongs to user
+        user_tasks = await get_user_tasks(user.id)
+        if not any(t.id == task_id for t in user_tasks):
+            await callback.answer("❌ Task not found.")
+            return
+
+        # Show task results
+        await show_task_results(message, user, task_id, 0, edit_mode=True)
+        await callback.answer()
+
+    except ValueError as e:
+        logger.error(f"Error parsing task ID for results: {e}")
+        await callback.answer("❌ Error: invalid task ID.")
+    except Exception as e:
+        logger.error(f"Error in view_task_results handler: {e}")
+        await callback.answer("❌ Error loading task results.")
+
+
+@router.callback_query(F.data == "back_to_tasks")
+async def handle_back_to_tasks(callback: CallbackQuery) -> None:
+    """Go back to task selection."""
+    if not callback.from_user:
+        await callback.answer("❌ Error: could not determine user.")
+        return
+
+    user = await get_or_create_user(callback.from_user.id)
+    message = safe_message_from_callback(callback.message)
+
+    if message:
+        await show_task_selection(message, user, 0, edit_mode=True)
+
+    await callback.answer()
+
+
+@router.callback_query(F.data == "back_to_status")
+async def handle_back_to_status(callback: CallbackQuery) -> None:
+    """Go back to status view."""
+    if not callback.from_user:
+        await callback.answer("❌ Error: could not determine user.")
+        return
+
+    user = await get_or_create_user(callback.from_user.id)
+    message = safe_message_from_callback(callback.message)
+
+    if message:
+        await show_detailed_status(message, user, edit_mode=True)
+
+    await callback.answer()
+
+
+@router.callback_query(F.data == "back_to_results")
+async def handle_back_to_results(callback: CallbackQuery) -> None:
+    """Go back to results list."""
+    if not callback.from_user:
+        await callback.answer("❌ Error: could not determine user.")
+        return
+
+    user = await get_or_create_user(callback.from_user.id)
+    message = safe_message_from_callback(callback.message)
+
+    if message:
+        await show_task_selection(message, user, 0, edit_mode=True)
+
+    await callback.answer()
+
+
+# Pagination handlers
+@router.callback_query(F.data.startswith("task_pagination_page_"))
+async def handle_task_pagination(callback: CallbackQuery) -> None:
+    """Handle task pagination."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract page number with validation
+        parts = callback.data.split("_")
+        if len(parts) < 4 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid pagination data.")
+            return
+
+        page = int(parts[-1])
+        if page < 0:
+            await callback.answer("❌ Error: invalid page number.")
+            return
+
+        user = await get_or_create_user(callback.from_user.id)
+        message = safe_message_from_callback(callback.message)
+
+        if message:
+            await show_task_selection(message, user, page, edit_mode=True)
+            await callback.answer()
+        else:
+            await callback.answer("❌ Error: message not accessible.")
+
+    except ValueError as e:
+        logger.error(f"Error parsing pagination page: {e}")
+        await callback.answer("❌ Error: invalid page number.")
+    except Exception as e:
+        logger.error(f"Error in task pagination handler: {e}")
+        await callback.answer("❌ Error loading page.")
+
+
+@router.callback_query(F.data.startswith("task_pagination_item_"))
+async def handle_task_selection_callback(callback: CallbackQuery) -> None:
+    """Handle task selection for viewing results."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract task index with validation
+        parts = callback.data.split("_")
+        if len(parts) < 4 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid task data.")
+            return
+
+        task_idx = int(parts[-1])
+        if task_idx < 0:
+            await callback.answer("❌ Error: invalid task index.")
             return
 
         user = await get_or_create_user(callback.from_user.id)
         user_tasks = await get_user_tasks(user.id)
 
-        # Find the requested task and verify ownership
-        task = next((t for t in user_tasks if t.id == task_id), None)
-        if not task:
-            await callback.answer("❌ Task not found or access denied.")
+        if task_idx >= len(user_tasks):
+            await callback.answer("❌ Task not found.")
             return
 
-        # Get analysis results for this specific task
-        task_results = await get_user_task_results(task.id)
-        analyses = task_results[:5]  # Limit to 5 results
+        task = user_tasks[task_idx]
+        message = safe_message_from_callback(callback.message)
 
-        history_text = dedent(
-            f"""
-            📋 <b>Task #{task.id} Details</b>
-            
-            📝 <b>Description:</b> {escape_html(task.description)}
-            📊 <b>Status:</b> {get_status_emoji(task.status)} {task.status}
-            🔄 <b>Cycles:</b> {task.cycles_completed}/{task.max_cycles}
-            
-            ⏰ <b>Created:</b> {task.created_at.strftime("%Y-%m-%d %H:%M")}
-            """
-        )
-
-        if task.processing_started_at:
-            history_text += f"🚀 <b>Started:</b> {task.processing_started_at.strftime('%Y-%m-%d %H:%M')}\n"
-
-        if task.processing_completed_at:
-            history_text += f"✅ <b>Completed:</b> {task.processing_completed_at.strftime('%Y-%m-%d %H:%M')}\n"
-            if task.processing_started_at:
-                duration = task.processing_completed_at - task.processing_started_at
-                history_text += f"⏱️ <b>Duration:</b> {format_time_estimate(duration.total_seconds())}\n"
-
-        if task.error_message:
-            history_text += (
-                f"\n❌ <b>Error:</b> {escape_html(cut_text(task.error_message, 200))}\n"
-            )
-
-        # Show recent analyses
-        if analyses:
-            history_text += "\n📊 <b>Recent Analysis Results:</b>\n"
-            for i, (analysis, paper) in enumerate(analyses[:5], 1):
-                relevance = analysis.relevance
-                history_text += (
-                    f"\n{i}. <b>{escape_html(cut_text(paper.title, 60))}</b>\n"
-                )
-                history_text += f"   📈 Relevance: {relevance:.1f}%\n"
-                if analysis.summary:
-                    history_text += (
-                        f"   💭 {escape_html(cut_text(analysis.summary, 100))}\n"
-                    )
+        if message:
+            await show_task_results(message, user, task.id, edit_mode=True)
+            await callback.answer()
         else:
-            if task.status == TaskStatus.COMPLETED:
-                history_text += "\n📊 <b>No analysis results found for this task.</b>\n"
-            elif task.status == TaskStatus.PROCESSING:
-                history_text += (
-                    "\n🔄 <b>Task is still processing... Check back later!</b>\n"
-                )
-            else:
-                history_text += "\n⏳ <b>No results yet - task hasn't completed.</b>\n"
+            await callback.answer("❌ Error: message not accessible.")
 
-        # Create navigation keyboard
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="📊 Show More Results",
-                        callback_data=f"history_more_{task_id}",
-                    )
-                ],
-                [
-                    InlineKeyboardButton(
-                        text="🔙 Back to Task List", callback_data="history_back"
-                    )
-                ],
-            ]
-        )
-
-        try:
-            if callback.message:
-                await callback.message.edit_text(  # type: ignore
-                    history_text, reply_markup=keyboard, parse_mode=ParseMode.HTML
-                )
-        except Exception:
-            pass  # Message might be inaccessible
-        await callback.answer()
-
+    except ValueError as e:
+        logger.error(f"Error parsing task index: {e}")
+        await callback.answer("❌ Error: invalid task index.")
     except Exception as e:
-        logger.error(f"Error showing task history: {e}")
-        await callback.answer("❌ An error occurred while loading task history.")
+        logger.error(f"Error in task selection handler: {e}")
+        await callback.answer("❌ Error loading task results.")
 
 
-@router.callback_query(F.data == "history_recent_all")
-async def show_recent_analyses_all(callback: CallbackQuery) -> None:
-    """Show recent analyses from all user tasks."""
+@router.callback_query(F.data == "task_pagination_refresh")
+async def handle_task_refresh(callback: CallbackQuery) -> None:
+    """Handle task list refresh."""
+    if not callback.from_user:
+        await callback.answer("❌ Error: could not determine user.")
+        return
+
+    user = await get_or_create_user(callback.from_user.id)
+    message = safe_message_from_callback(callback.message)
+
+    if message:
+        await show_task_selection(message, user, 0, edit_mode=True)
+
+    await callback.answer("✅ Task list refreshed!")
+
+
+# Results pagination handlers
+@router.callback_query(F.data.startswith("results_pagination_page_"))
+async def handle_results_pagination(callback: CallbackQuery) -> None:
+    """Handle results pagination."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
     try:
-        if not callback.from_user:
-            await callback.answer("❌ Error: could not determine user.")
+        # Extract page number with validation
+        parts = callback.data.split("_")
+        if len(parts) < 4 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid pagination data.")
+            return
+
+        page = int(parts[-1])
+        if page < 0:
+            await callback.answer("❌ Error: invalid page number.")
             return
 
         user = await get_or_create_user(callback.from_user.id)
-        analyses = await list_recent_analyses_for_user(user.id, limit=10)
+        message = safe_message_from_callback(callback.message)
 
-        if not analyses:
-            try:
-                if callback.message:
-                    await callback.message.edit_text(  # type: ignore
-                        dedent(
-                            """
-                            📊 <b>Recent Analysis Results</b>
-                            
-                            ⚠️ No analysis results found yet.
-                            
-                            Results will appear here as your tasks complete their research cycles.
-                            """
-                        ),
-                        reply_markup=InlineKeyboardMarkup(
-                            inline_keyboard=[
-                                [
-                                    InlineKeyboardButton(
-                                        text="🔙 Back", callback_data="history_back"
-                                    )
-                                ]
-                            ]
-                        ),
-                        parse_mode=ParseMode.HTML,
-                    )
-            except Exception:
-                pass  # Message might be inaccessible
+        if message:
+            # Extract task_id from callback data or use a default approach
+            # For now, we'll show all results since task filtering isn't fully implemented
+            await show_task_results(message, user, 0, page, edit_mode=True)
             await callback.answer()
+        else:
+            await callback.answer("❌ Error: message not accessible.")
+
+    except ValueError as e:
+        logger.error(f"Error parsing results pagination page: {e}")
+        await callback.answer("❌ Error: invalid page number.")
+    except Exception as e:
+        logger.error(f"Error in results pagination handler: {e}")
+        await callback.answer("❌ Error loading page.")
+
+
+@router.callback_query(F.data.startswith("results_pagination_item_"))
+async def handle_result_selection(callback: CallbackQuery) -> None:
+    """Handle result selection."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract result index with validation
+        parts = callback.data.split("_")
+        if len(parts) < 4 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid result data.")
             return
 
-        results_text = "📊 <b>Recent Analysis Results (All Tasks)</b>\n\n"
+        result_idx = int(parts[-1])
+        if result_idx < 0:
+            await callback.answer("❌ Error: invalid result index.")
+            return
 
-        for i, (analysis, paper) in enumerate(analyses, 1):
-            relevance = analysis.relevance
-            results_text += f"{i}. <b>{escape_html(cut_text(paper.title, 60))}</b>\n"
-            results_text += f"   📈 Relevance: {relevance:.1f}%\n"
-            results_text += f"   📅 {analysis.created_at.strftime('%m/%d %H:%M')}\n"
-            if analysis.summary:
-                results_text += f"   💭 {escape_html(cut_text(analysis.summary, 80))}\n"
-            results_text += "\n"
+        user = await get_or_create_user(callback.from_user.id)
 
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="🔙 Back to Task List", callback_data="history_back"
-                    )
-                ]
-            ]
+        # Get all analyses for user to find the specific one
+        all_analyses = []
+
+        # Try old system first (ResearchTopic) - this is what agent currently uses
+        try:
+            from shared.db import list_recent_analyses_for_user
+
+            old_analyses = await list_recent_analyses_for_user(user.id, limit=100)
+            all_analyses.extend(old_analyses)
+        except Exception as e:
+            logger.warning(f"Error loading old system analyses: {e}")
+
+        # If no results in old system, try new system (UserTask + Finding)
+        if not all_analyses:
+            try:
+                user_tasks = await get_user_tasks(user.id)
+
+                for task in user_tasks:
+                    try:
+                        # Import here to avoid circular imports
+                        from shared.db import get_user_task_results
+
+                        task_results = await get_user_task_results(task.id)
+                        all_analyses.extend(task_results)
+                    except Exception as e:
+                        logger.warning(
+                            f"Error loading task results for task {task.id}: {e}"
+                        )
+                        continue
+            except Exception as e:
+                logger.warning(f"Error loading user tasks: {e}")
+
+        if result_idx >= len(all_analyses):
+            await callback.answer("❌ Result not found.")
+            return
+
+        analysis, paper = all_analyses[result_idx]
+
+        # Create detailed result display
+        message = safe_message_from_callback(callback.message)
+        if message:
+            await show_individual_result(message, analysis, paper, result_idx)
+            await callback.answer()
+        else:
+            await callback.answer("❌ Error: message not accessible.")
+
+    except ValueError as e:
+        logger.error(f"Error parsing result index: {e}")
+        await callback.answer("❌ Error: invalid result index.")
+    except Exception as e:
+        logger.error(f"Error in result selection handler: {e}")
+        await callback.answer("❌ Error loading result.")
+
+
+@router.callback_query(F.data == "results_pagination_refresh")
+async def handle_results_refresh(callback: CallbackQuery) -> None:
+    """Handle results refresh."""
+    if not callback.from_user:
+        await callback.answer("❌ Error: could not determine user.")
+        return
+
+    user = await get_or_create_user(callback.from_user.id)
+    message = safe_message_from_callback(callback.message)
+
+    if message:
+        await show_task_results(message, user, 0, 0, edit_mode=True)
+
+    await callback.answer("✅ Results refreshed!")
+
+
+# Result interaction handlers
+@router.callback_query(F.data.startswith("show_result_"))
+async def handle_show_individual_result_callback(callback: CallbackQuery) -> None:
+    """Show individual result with AI summary and source links."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract result index with validation
+        parts = callback.data.split("_")
+        if len(parts) < 3 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid result data.")
+            return
+
+        result_idx = int(parts[-1])
+        if result_idx < 0:
+            await callback.answer("❌ Error: invalid result index.")
+            return
+
+        user = await get_or_create_user(callback.from_user.id)
+
+        # Get all analyses for user to find the specific one
+        all_analyses = []
+
+        # Try old system first (ResearchTopic) - this is what agent currently uses
+        try:
+            from shared.db import list_recent_analyses_for_user
+
+            old_analyses = await list_recent_analyses_for_user(user.id, limit=100)
+            all_analyses.extend(old_analyses)
+        except Exception as e:
+            logger.warning(f"Error loading old system analyses: {e}")
+
+        # If no results in old system, try new system (UserTask + Finding)
+        if not all_analyses:
+            try:
+                user_tasks = await get_user_tasks(user.id)
+
+                for task in user_tasks:
+                    try:
+                        # Import here to avoid circular imports
+                        from shared.db import get_user_task_results
+
+                        task_results = await get_user_task_results(task.id)
+                        all_analyses.extend(task_results)
+                    except Exception as e:
+                        logger.warning(
+                            f"Error loading task results for task {task.id}: {e}"
+                        )
+                        continue
+            except Exception as e:
+                logger.warning(f"Error loading user tasks: {e}")
+
+        if result_idx >= len(all_analyses):
+            await callback.answer("❌ Result not found.")
+            return
+
+        analysis, paper = all_analyses[result_idx]
+
+        # Create detailed result display (new notification format)
+        message = safe_message_from_callback(callback.message)
+        if message:
+            await show_individual_result(message, analysis, paper, result_idx)
+            await callback.answer()
+        else:
+            await callback.answer("❌ Error: message not accessible.")
+
+    except ValueError as e:
+        logger.error(f"Error parsing result index: {e}")
+        await callback.answer("❌ Error: invalid result index.")
+    except Exception as e:
+        logger.error(f"Error in show result handler: {e}")
+        await callback.answer("❌ Error loading result.")
+
+
+@router.callback_query(F.data.startswith("save_result_"))
+async def handle_save_result(callback: CallbackQuery) -> None:
+    """Handle save result button."""
+    await callback.answer("💾 Result saved to your favorites! (Feature coming soon)")
+
+
+@router.callback_query(F.data.startswith("more_sources_"))
+async def handle_more_sources_callback(callback: CallbackQuery) -> None:
+    """Handle more sources button."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract result index with validation
+        parts = callback.data.split("_")
+        if len(parts) < 3 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid result data.")
+            return
+
+        result_idx = int(parts[-1])
+        if result_idx < 0:
+            await callback.answer("❌ Error: invalid result index.")
+            return
+
+        user = await get_or_create_user(callback.from_user.id)
+
+        # Get the specific result to show additional sources
+        all_analyses = []
+
+        # Try old system first (ResearchTopic) - this is what agent currently uses
+        try:
+            from shared.db import list_recent_analyses_for_user
+
+            old_analyses = await list_recent_analyses_for_user(user.id, limit=100)
+            all_analyses.extend(old_analyses)
+        except Exception as e:
+            logger.warning(f"Error loading old system analyses: {e}")
+
+        # If no results in old system, try new system (UserTask + Finding)
+        if not all_analyses:
+            try:
+                user_tasks = await get_user_tasks(user.id)
+
+                for task in user_tasks:
+                    try:
+                        # Import here to avoid circular imports
+                        from shared.db import get_user_task_results
+
+                        task_results = await get_user_task_results(task.id)
+                        all_analyses.extend(task_results)
+                    except Exception as e:
+                        logger.warning(
+                            f"Error loading task results for task {task.id}: {e}"
+                        )
+                        continue
+            except Exception as e:
+                logger.warning(f"Error loading user tasks: {e}")
+
+        if result_idx >= len(all_analyses):
+            await callback.answer("❌ Result not found.")
+            return
+
+        analysis, paper = all_analyses[result_idx]
+
+        # Show additional source options
+        message = safe_message_from_callback(callback.message)
+        if message:
+            await show_additional_sources(message, paper, result_idx)
+            await callback.answer()
+        else:
+            await callback.answer("❌ Error: message not accessible.")
+
+    except ValueError as e:
+        logger.error(f"Error parsing result index for sources: {e}")
+        await callback.answer("❌ Error: invalid result index.")
+    except Exception as e:
+        logger.error(f"Error loading sources: {e}")
+        await callback.answer("❌ Error loading sources.")
+
+
+# Click tracking for analytics
+@router.callback_query(F.data.startswith("track_click_"))
+async def handle_click_tracking(callback: CallbackQuery) -> None:
+    """Track clicks on source buttons for analytics."""
+    if not callback.data:
+        return
+
+    # Parse click data
+    parts = callback.data.split("_")
+    if len(parts) >= 4:
+        source_type = parts[2]  # paper, arxiv, doi, pubmed, scholar
+        result_idx = parts[3]
+
+        # Log the click for analytics
+        logger.info(
+            f"User {callback.from_user.id if callback.from_user else 'unknown'} "
+            f"clicked {source_type} link for result {result_idx}"
         )
 
-        try:
-            if callback.message:
-                await callback.message.edit_text(  # type: ignore
-                    results_text, reply_markup=keyboard, parse_mode=ParseMode.HTML
-                )
-        except Exception:
-            pass  # Message might be inaccessible
-        await callback.answer()
-
-    except Exception as e:
-        logger.error(f"Error showing recent analyses: {e}")
-        await callback.answer("❌ An error occurred while loading analyses.")
-
-
-@router.callback_query(F.data == "history_back")
-async def history_back_to_list(callback: CallbackQuery) -> None:
-    """Go back to task history list."""
-    # Re-trigger the history command logic
-    if callback.message and callback.from_user:
-        # Create a mock message object to reuse the history handler logic
-        await command_history_handler(callback.message)
     await callback.answer()

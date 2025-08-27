@@ -24,48 +24,51 @@ async def get_or_create_user(
     :param last_name: User's last name (optional)
     :returns: User instance
     """
-    async with SessionLocal() as session:
-        result = await session.execute(
-            select(User).where(User.telegram_id == telegram_id)
-        )
-        user = result.scalar_one_or_none()
-
-        if user is None:
-            # Set limits based on plan (FREE by default)
-            daily_limit = 5  # Free plan default
-            concurrent_limit = 1  # Free plan default
-
-            user = User(
-                telegram_id=telegram_id,
-                username=username,
-                first_name=first_name,
-                last_name=last_name,
-                plan=UserPlan.FREE,
-                daily_task_limit=daily_limit,
-                concurrent_task_limit=concurrent_limit,
+    try:
+        async with SessionLocal() as session:
+            result = await session.execute(
+                select(User).where(User.telegram_id == telegram_id)
             )
-            session.add(user)
-            await session.commit()
-            await session.refresh(user)
-        else:
-            # Update user info if provided
-            updated = False
-            if username and user.username != username:
-                user.username = username
-                updated = True
-            if first_name and user.first_name != first_name:
-                user.first_name = first_name
-                updated = True
-            if last_name and user.last_name != last_name:
-                user.last_name = last_name
-                updated = True
+            user = result.scalar_one_or_none()
 
-            if updated:
-                user.updated_at = datetime.now()
+            if user is None:
+                # Set limits based on plan (FREE by default)
+                daily_limit = 5  # Free plan default
+                concurrent_limit = 1  # Free plan default
+
+                user = User(
+                    telegram_id=telegram_id,
+                    username=username,
+                    first_name=first_name,
+                    last_name=last_name,
+                    plan=UserPlan.FREE,
+                    daily_task_limit=daily_limit,
+                    concurrent_task_limit=concurrent_limit,
+                )
+                session.add(user)
                 await session.commit()
                 await session.refresh(user)
+            else:
+                # Update user info if provided
+                updated = False
+                if username and user.username != username:
+                    user.username = username
+                    updated = True
+                if first_name and user.first_name != first_name:
+                    user.first_name = first_name
+                    updated = True
+                if last_name and user.last_name != last_name:
+                    user.last_name = last_name
+                    updated = True
+
+                if updated:
+                    user.updated_at = datetime.now()
+                    await session.commit()
+                    await session.refresh(user)
 
         return user
+    except Exception as e:
+        raise RuntimeError(f"Failed to get or create user {telegram_id}: {e}") from e
 
 
 async def upgrade_user_plan(

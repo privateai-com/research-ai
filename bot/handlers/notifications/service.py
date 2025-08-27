@@ -7,7 +7,8 @@ from aiogram import Bot
 from aiogram.enums import ParseMode
 
 from shared.llm import get_agent_model
-from bot.utils import escape_html
+# TODO: Update import path after utils reorganization
+from bot.handlers.utils.utils import escape_html
 from shared.db import (
     ensure_connection,
     get_analysis_with_entities,
@@ -32,6 +33,7 @@ async def get_target_chat_id(user_id: int) -> int:
         ensure_connection()
         settings = await get_user_settings(user_id)
         current_group = getattr(settings, "group_chat_id", None) if settings else None
+        # TODO: Cache user settings to reduce database queries
         logger.info(
             f"User {user_id} settings: group_chat_id={current_group if current_group is not None else 'None'}"
         )
@@ -51,11 +53,12 @@ async def get_target_chat_id(user_id: int) -> int:
 def _get_simplifier_agent():
     """Lazy initialization of the simplifier agent."""
     from agents import Agent
+
     return Agent(
         name="Notification Simplifier",
         model=get_agent_model(),
         instructions=dedent(
-        """
+            """
         You rewrite technical research notifications into clear, friendly messages for a general audience.
 
         Goals:
@@ -85,10 +88,12 @@ async def simplify_for_layperson(text: str) -> str:
     """
     try:
         from agents import Runner
+
         result: Any = await Runner.run(_get_simplifier_agent(), text)
         simplified = (
             str(getattr(result, "final_output", "")).strip() or str(result).strip()
         )
+        # TODO: Implement more sophisticated HTML/markdown cleanup
         # Basic post-clean: remove any stray tags just in case
         return simplified.replace("<", "").replace(">", "")
     except Exception as error:
@@ -108,6 +113,7 @@ async def send_message_to_target_chat(
     :returns: ``None``.
     """
 
+    # TODO: Implement smart message splitting that preserves HTML tags and formatting
     def _split_message(msg: str, max_len: int = 4000) -> list[str]:
         if len(msg) <= max_len:
             return [msg]

@@ -18,13 +18,16 @@ SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSe
 
 async def init_db() -> None:
     """Initialize database and create all tables including new user management and queue tables."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
-    # Initialize default task statistics if none exist
-    from .operations import get_or_create_task_statistics
+        # Initialize default task statistics if none exist
+        from .operations import get_or_create_task_statistics
 
-    await get_or_create_task_statistics()
+        await get_or_create_task_statistics()
+    except Exception as e:
+        raise RuntimeError(f"Failed to initialize database: {e}") from e
 
 
 def ensure_connection() -> None:

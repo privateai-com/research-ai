@@ -1,10 +1,16 @@
-from aiogram import Router
+from aiogram import Router, F
 
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
-from aiogram.enums import ParseMode
+from aiogram.types import (
+    Message,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+)
 from textwrap import dedent
 from shared.logging import get_logger
+
+from bot.handlers.utils.messages import send_or_edit_message
+from bot.handlers.utils.ui import get_main_menu_keyboard
 
 router = Router(name="general")
 
@@ -13,60 +19,71 @@ logger = get_logger(__name__)
 
 @router.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
-    user_name = "user"
+    user_name = "friend"
     if message.from_user and message.from_user.full_name:
         user_name = message.from_user.full_name
 
-    help_text = dedent(f"""
-    🔬 Hello, {user_name}! I'm your assistant that explores research sources and finds items useful for your goals.
+    welcome_text = dedent(f"""
+    👋 <b>Hello, {user_name}!</b>
 
-    📌 <b>How it works</b>
-    1. You create a task, for example: /task "AI for medical imaging"
-    2. I search arXiv, Google Scholar, PubMed, and GitHub, evaluate relevance, and send you clear summaries.
-    3. At the end of 50 search cycles, I send you a report with the most relevant and interesting items.
+    I find and analyze research papers for you across scientific databases.
 
-    📋 <b>Main commands</b>
-    • /task "description" — create a new research task
-    • /status — show current status of your task
-    • /history — recent findings that I found interesting
-    
-    Also, you can add me to your group chat and I will search for you there!
-    To achive this, you need to add me to the group chat and use command /set_group.
-    If you want to unset group, use command /unset_group.
-    
-    To see all available commands, use /help.
+    <b>🔬 Quick start:</b>
+    • Press "🔬 New Task" to research any topic
+    • I'll search, analyze, and send you the best findings
+    • Check "📊 Status" to see progress
 
-    🧭 <b>Tip</b>
-    Make your task as specific as possible, so I can find the most relevant items for you.
+    Ready to explore? 👇
     """)
 
-    await message.answer(help_text, parse_mode=ParseMode.HTML)
+    await send_or_edit_message(
+        message, welcome_text, get_main_menu_keyboard(), auto_edit_recent=True
+    )
 
 
 @router.message(Command("help"))
 async def command_help_handler(message: Message) -> None:
-    """Show help message"""
+    """Show help message with easy navigation."""
+    await show_help_guide(message)
 
+
+@router.message(Command("commands"))
+async def command_commands_handler(message: Message) -> None:
+    """Show all available commands."""
+    await show_help_guide(message)
+
+
+@router.message(F.text == "❓ Help")
+async def menu_help_handler(message: Message) -> None:
+    """Handle help button from main menu."""
+    await show_help_guide(message)
+
+
+async def show_help_guide(message: Message) -> None:
+    """Show simple help guide.
+
+    :param message: Telegram message to respond to
+    """
     help_text = dedent("""
-    <b>How it works</b>
-    1. You create a task, for example: /task "AI for medical imaging"
-    2. I search arXiv, Google Scholar, PubMed, and GitHub, evaluate relevance, and send you clear summaries.
-    3. At the end of 50 search cycles, I send you a report with the most relevant and interesting items.
-    
-    <b>Main commands</b>
-    /task "description" — create a new research task
-    /status — show current status of your task
-    /history — recent findings that I found interesting
-    
-    <b>Group chat commands</b>
-    /set_group — add me to your group chat
-    /unset_group — remove me from your group chat
-    
-    <b>Tip</b>
-    Make your task as specific as possible, so I can find the most relevant items for you.
+    ❓ <b>Simple Commands</b>
+
+    <b>📱 Main Buttons:</b>
+    🔬 New Task - Create research task
+    📊 Status - Check task progress  
+    📚 Results - View findings
+    ❓ Help - This message
+
+    <b>⚙️ Optional Commands:</b>
+    /account - View your plan
+    /notifications_on - Enable alerts
+    /notifications_off - Disable alerts
+    /group_on - Share in group (use in group)
+    /group_off - Back to personal chat
+
+    <b>💡 Examples:</b>
+    "cancer treatment", "solar energy", "AI applications"
+
+    That's all you need to know!
     """)
 
-    await message.answer(
-        help_text,
-        parse_mode=ParseMode.HTML,
-    )
+    await send_or_edit_message(message, help_text, auto_edit_recent=True)
