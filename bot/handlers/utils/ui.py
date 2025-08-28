@@ -66,20 +66,58 @@ def get_status_emoji(status: TaskStatus) -> str:
         return "✅"
     elif status == TaskStatus.FAILED:
         return "❌"
+    elif status == TaskStatus.CANCELLED:
+        return "🚫"
+    elif status == TaskStatus.PAUSED:
+        return "⏸️"
     else:
         return "❓"
 
 
 def create_task_details_keyboard(
-    task_id: int, has_results: bool = False
+    task_id: int, has_results: bool = False, task_status: Optional[TaskStatus] = None
 ) -> InlineKeyboardMarkup:
     """Create keyboard for task details view.
 
     :param task_id: Task ID
     :param has_results: Whether task has results to show
+    :param task_status: Current task status for action buttons
     :returns: Inline keyboard markup
     """
     buttons = []
+
+    # Add action buttons based on task status
+    if task_status:
+        action_buttons = []
+
+        if task_status in [TaskStatus.QUEUED, TaskStatus.PROCESSING]:
+            # Can cancel or pause active tasks
+            action_buttons.append(
+                InlineKeyboardButton(
+                    text="🚫 Cancel", callback_data=f"cancel_task_{task_id}"
+                )
+            )
+            if task_status == TaskStatus.PROCESSING:
+                action_buttons.append(
+                    InlineKeyboardButton(
+                        text="⏸️ Pause", callback_data=f"pause_task_{task_id}"
+                    )
+                )
+        elif task_status == TaskStatus.PAUSED:
+            # Can resume paused tasks
+            action_buttons.append(
+                InlineKeyboardButton(
+                    text="▶️ Resume", callback_data=f"resume_task_{task_id}"
+                )
+            )
+            action_buttons.append(
+                InlineKeyboardButton(
+                    text="🚫 Cancel", callback_data=f"cancel_task_{task_id}"
+                )
+            )
+
+        if action_buttons:
+            buttons.append(action_buttons)
 
     if has_results:
         buttons.append(
@@ -319,21 +357,39 @@ def create_source_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def create_status_keyboard(active_tasks, completed_tasks) -> InlineKeyboardMarkup:
+def create_status_keyboard(active_tasks, completed_tasks, paused_tasks=None, cancelled_tasks=None) -> InlineKeyboardMarkup:
     """Create keyboard for status view.
 
     :param active_tasks: List of active tasks
     :param completed_tasks: List of completed tasks
+    :param paused_tasks: List of paused tasks
+    :param cancelled_tasks: List of cancelled tasks
     :returns: Inline keyboard markup
     """
+    if paused_tasks is None:
+        paused_tasks = []
+    if cancelled_tasks is None:
+        cancelled_tasks = []
+
     buttons = []
 
-    # Add active task buttons (max 3)
-    for task in active_tasks[:3]:
+    # Add active task buttons (max 2)
+    for task in active_tasks[:2]:
         buttons.append(
             [
                 InlineKeyboardButton(
-                    text=f"📋 Details #{task.id}",
+                    text=f"📋 Active #{task.id}",
+                    callback_data=f"task_details_{task.id}",
+                )
+            ]
+        )
+
+    # Add paused task buttons (max 2)
+    for task in paused_tasks[:2]:
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=f"⏸️ Paused #{task.id}",
                     callback_data=f"task_details_{task.id}",
                 )
             ]
@@ -345,6 +401,17 @@ def create_status_keyboard(active_tasks, completed_tasks) -> InlineKeyboardMarku
             [
                 InlineKeyboardButton(
                     text="🔄 Refresh Status", callback_data="refresh_status"
+                )
+            ]
+        )
+
+    # Add cancelled task buttons (max 1)
+    for task in cancelled_tasks[:1]:
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=f"🚫 Cancelled #{task.id}",
+                    callback_data=f"task_details_{task.id}",
                 )
             ]
         )

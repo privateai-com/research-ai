@@ -75,7 +75,7 @@ async def command_zen_settings(message: Message) -> None:
         ])
         
         await send_or_edit_message(
-            message, zen_settings_text, keyboard, auto_edit_recent=True
+            message, zen_settings_text, keyboard, 
         )
         
     except Exception as e:

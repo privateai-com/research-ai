@@ -55,7 +55,7 @@ async def command_admin_metrics(message: Message) -> None:
         metrics_text = await _generate_system_metrics()
         
         await send_or_edit_message(
-            message, metrics_text, auto_edit_recent=True
+            message, metrics_text
         )
         
     except Exception as e:
@@ -152,7 +152,7 @@ async def command_admin_health(message: Message) -> None:
         health_text = await _generate_health_report()
         
         await send_or_edit_message(
-            message, health_text, auto_edit_recent=True
+            message, health_text, 
         )
         
     except Exception as e:
@@ -281,7 +281,7 @@ async def command_admin_alerts(message: Message) -> None:
         """)
         
         await send_or_edit_message(
-            message, alerts_text, auto_edit_recent=True
+            message, alerts_text, 
         )
         
     except Exception as e:

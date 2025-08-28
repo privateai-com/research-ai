@@ -46,7 +46,7 @@ async def command_zen_start(message: Message, state: FSMContext) -> None:
     # Validate user access
     is_valid, error_msg = await validate_user_access(message)
     if not is_valid:
-        await send_or_edit_message(message, error_msg, auto_edit_recent=True)
+        await send_or_edit_message(message, error_msg
         return
 
     try:
@@ -80,7 +80,7 @@ async def command_zen_start(message: Message, state: FSMContext) -> None:
         ])
 
         await send_or_edit_message(
-            message, zen_intro_text, keyboard, auto_edit_recent=True
+            message, zen_intro_text, keyboard, 
         )
 
     except Exception as e:
@@ -115,7 +115,7 @@ async def callback_zen_create_start(callback, state: FSMContext) -> None:
         """)
 
         await send_or_edit_message(
-            callback.message, topic_prompt_text, auto_edit_recent=True
+            callback.message, topic_prompt_text, 
         )
 
         await state.set_state(ZenCreationStates.waiting_for_topic)
@@ -175,7 +175,7 @@ async def process_zen_topic(message: Message, state: FSMContext) -> None:
         ])
 
         await send_or_edit_message(
-            message, cycles_prompt_text, keyboard, auto_edit_recent=True
+            message, cycles_prompt_text, keyboard, 
         )
 
         await state.set_state(ZenCreationStates.waiting_for_daily_cycles)
@@ -207,7 +207,7 @@ async def callback_zen_cycles(callback, state: FSMContext) -> None:
             """)
 
             await send_or_edit_message(
-                callback.message, custom_prompt_text, auto_edit_recent=True
+                callback.message, custom_prompt_text, 
             )
             await callback.answer()
             return
@@ -289,7 +289,7 @@ async def _create_zen_task(message: Message, state: FSMContext) -> None:
         ])
 
         await send_or_edit_message(
-            message, task_created_text, keyboard, auto_edit_recent=True
+            message, task_created_text, keyboard, 
         )
 
         # Clear state
@@ -300,7 +300,7 @@ async def _create_zen_task(message: Message, state: FSMContext) -> None:
     except Exception as e:
         logger.error(f"Error creating Zen task: {e}")
         await send_or_edit_message(
-            message, "❌ Error creating Zen task.", auto_edit_recent=True
+            message, "❌ Error creating Zen task.", 
         )
 
 
@@ -316,7 +316,7 @@ async def callback_zen_cancel(callback, state: FSMContext) -> None:
 
         cancel_text = "❌ Zen task creation cancelled."
         await send_or_edit_message(
-            callback.message, cancel_text, auto_edit_recent=True
+            callback.message, cancel_text, 
         )
 
         await callback.answer("Zen task creation cancelled.")

@@ -48,7 +48,7 @@ async def command_advanced_task_creation(message: Message, state: FSMContext) ->
     # Validate user access
     is_valid, error_msg = await validate_user_access(message)
     if not is_valid:
-        await send_or_edit_message(message, error_msg, auto_edit_recent=True)
+        await send_or_edit_message(message, error_msg
         return
     
     try:
@@ -83,7 +83,7 @@ async def command_advanced_task_creation(message: Message, state: FSMContext) ->
         ])
         
         await send_or_edit_message(
-            message, advanced_creation_text, keyboard, auto_edit_recent=True
+            message, advanced_creation_text, keyboard, 
         )
         
     except Exception as e:
@@ -391,7 +391,7 @@ async def callback_advanced_create_cancel(callback: CallbackQuery, state: FSMCon
         
         cancel_text = "❌ Advanced task creation cancelled."
         await send_or_edit_message(
-            callback.message, cancel_text, auto_edit_recent=True
+            callback.message, cancel_text, 
         )
         
         await callback.answer("Task creation cancelled.")

@@ -39,7 +39,7 @@ async def command_account(message: Message) -> None:
     """Show account information."""
     if not message.from_user:
         error_text = "❌ Error: could not determine user."
-        await send_or_edit_message(message, error_text, auto_edit_recent=True)
+        await send_or_edit_message(message, error_text)
         return
 
     # Import here to avoid circular imports
@@ -65,8 +65,8 @@ async def command_account(message: Message) -> None:
         <b>Completed:</b> {completed_tasks}
         """)
 
-        await send_or_edit_message(message, account_text, auto_edit_recent=True)
+        await send_or_edit_message(message, account_text)
 
     except Exception:
         error_text = "❌ Error loading account information"
-        await send_or_edit_message(message, error_text, auto_edit_recent=True)
+        await send_or_edit_message(message, error_text)

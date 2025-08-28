@@ -57,7 +57,7 @@ async def command_admin_analytics(message: Message) -> None:
         analytics_text = await _generate_analytics_report()
         
         await send_or_edit_message(
-            message, analytics_text, auto_edit_recent=True
+            message, analytics_text
         )
         
     except Exception as e:
@@ -150,7 +150,7 @@ async def command_admin_user_stats(message: Message) -> None:
         user_stats_text = await _generate_user_stats()
         
         await send_or_edit_message(
-            message, user_stats_text, auto_edit_recent=True
+            message, user_stats_text, 
         )
         
     except Exception as e:

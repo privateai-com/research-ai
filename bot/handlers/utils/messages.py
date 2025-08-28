@@ -1,10 +1,25 @@
 """
 Message handling utilities and smart message management.
 
-This module provides utilities for sending, editing, and tracking bot messages
-with automatic fallback and memory management. It includes intelligent content
-change detection to avoid unnecessary API calls and prevent Telegram's
-"message is not modified" errors.
+USER COMMUNICATION RULES:
+==========================================
+
+WHEN TO SEND NEW MESSAGES:
+- First interaction (/start, /help)
+- Creating new entities (new tasks)
+- Error handling and exceptions
+- Responses to commands without context
+
+WHEN TO EDIT EXISTING MESSAGES:
+- Navigation through menus and sections (navigation_context=True)
+- Task status updates (function_context_key)
+- Results pagination (navigation_context=True)
+- Transitions between screens of the same context (navigation_context=True)
+
+FUNCTION-SPECIFIC MESSAGE EDITING:
+- Use function_context_key to edit messages created by specific functions
+- Each function can have its own tracked message for updates
+- Context keys are generated using generate_context_key()
 
 Key Features:
 - Smart message editing with content change detection
@@ -14,14 +29,20 @@ Key Features:
 - Keyboard comparison for InlineKeyboardMarkup objects
 
 Example:
-    # Smart editing with change detection
+    # For navigation always use navigation_context=True
     await send_or_edit_message(
-        message, "New content", keyboard, edit_mode=True
+        message, "New content", keyboard, navigation_context=True
     )
 
-    # Auto-edit recent message if content changed
+    # For new actions - regular messages
     await send_or_edit_message(
-        message, "Updated content", keyboard, auto_edit_recent=True
+        message, "Task created!", keyboard
+    )
+
+    # For function-specific editing
+    context_key = f"status_{user_id}"
+    await send_or_edit_message(
+        message, "Status updated", keyboard, function_context_key=context_key
     )
 """
 
@@ -33,10 +54,17 @@ from shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Глобальный словарь для отслеживания последних сообщений бота по пользователю
+# Global dictionary to track the last bot messages per user
 _last_bot_messages: Dict[int, Message] = {}
-# Словарь для хранения последнего содержимого сообщений
+# Dictionary to store the last message content
 _last_message_content: Dict[int, Dict[str, Any]] = {}
+# Dictionary to track function-specific messages for editing
+_function_context_messages: Dict[str, Message] = {}
+
+# Maximum number of tracked users
+MAX_TRACKED_USERS = 500
+# Maximum message content size (characters)
+MAX_CONTENT_SIZE = 4000
 
 
 def normalize_text(text: str) -> str:
@@ -113,29 +141,28 @@ async def track_bot_message(
     :param text: Message text (optional, for content tracking)
     :param keyboard: Message keyboard (optional, for content tracking)
     """
-    # Ограничиваем размер словарей, чтобы избежать утечек памяти
-    if len(_last_bot_messages) > 1000:
-        # Удаляем старые записи (первые 200)
-        items_to_remove = list(_last_bot_messages.keys())[:200]
+    # Limit dictionary size to prevent memory leaks
+    if len(_last_bot_messages) > MAX_TRACKED_USERS:
+        # Remove old entries (remove 20% of the oldest)
+        items_to_remove = list(_last_bot_messages.keys())[:MAX_TRACKED_USERS // 5]
         for key in items_to_remove:
             _last_bot_messages.pop(key, None)
             _last_message_content.pop(key, None)
 
-    if len(_last_message_content) > 1000:
-        # Очищаем словарь содержимого сообщений
-        items_to_remove = list(_last_message_content.keys())[:200]
-        for key in items_to_remove:
-            _last_message_content.pop(key, None)
-
     _last_bot_messages[user_id] = message
 
-    # Сохраняем содержимое сообщения, если передано
+    # Save message content if provided
     if text is not None:
+        # Limit text size for memory efficiency
+        normalized_text = normalize_text(text)
+        if len(normalized_text) > MAX_CONTENT_SIZE:
+            normalized_text = normalized_text[:MAX_CONTENT_SIZE] + "..."
+
         inline_keyboard = (
             keyboard if isinstance(keyboard, InlineKeyboardMarkup) else None
         )
         _last_message_content[user_id] = {
-            "text": normalize_text(text),
+            "text": normalized_text,
             "keyboard": inline_keyboard,
         }
 
@@ -158,18 +185,71 @@ async def clear_user_message_history(user_id: int) -> None:
     _last_message_content.pop(user_id, None)
 
 
+async def set_function_context_message(context_key: str, message: Message) -> None:
+    """Set a message for a specific function context for later editing.
+
+    :param context_key: Unique key identifying the function context (e.g., 'status_user_123')
+    :param message: Message to be tracked for this context
+    """
+    # Limit the size of context messages dictionary
+    if len(_function_context_messages) > MAX_TRACKED_USERS:
+        # Remove oldest entries (first 20%)
+        items_to_remove = list(_function_context_messages.keys())[:MAX_TRACKED_USERS // 5]
+        for key in items_to_remove:
+            _function_context_messages.pop(key, None)
+
+    _function_context_messages[context_key] = message
+
+
+async def get_function_context_message(context_key: str) -> Optional[Message]:
+    """Get a message for a specific function context.
+
+    :param context_key: Unique key identifying the function context
+    :return: Message if found, None otherwise
+    """
+    return _function_context_messages.get(context_key)
+
+
+async def clear_function_context_message(context_key: str) -> None:
+    """Clear a function context message.
+
+    :param context_key: Unique key identifying the function context
+    """
+    _function_context_messages.pop(context_key, None)
+
+
+def generate_context_key(function_name: str, user_id: int, *args: Any) -> str:
+    """Generate a unique context key for a function.
+
+    :param function_name: Name of the function (e.g., 'status', 'help', 'tasks')
+    :param user_id: User ID
+    :param args: Additional arguments to make key unique
+    :return: Unique context key
+    """
+    key_parts = [function_name, str(user_id)]
+    key_parts.extend(str(arg) for arg in args)
+    return "_".join(key_parts)
+
+
 def get_message_content_stats() -> Dict[str, int]:
     """Get statistics about stored message content.
 
     :returns: Dictionary with statistics
     """
+    total_content_size = sum(
+        len(content.get("text", "")) for content in _last_message_content.values()
+    )
+
     return {
         "tracked_messages": len(_last_bot_messages),
         "stored_content": len(_last_message_content),
+        "function_context_messages": len(_function_context_messages),
+        "max_users_limit": MAX_TRACKED_USERS,
+        "max_content_size": MAX_CONTENT_SIZE,
+        "total_content_chars": total_content_size,
         "memory_usage_estimate_kb": (
-            len(_last_bot_messages) + len(_last_message_content)
-        )
-        * 2,  # Rough estimate
+            len(_last_bot_messages) * 2 + len(_function_context_messages) * 2 + total_content_size // 500
+        ),  # More accurate estimate
     }
 
 
@@ -178,15 +258,22 @@ async def send_or_edit_message(
     text: str,
     keyboard=None,
     edit_mode: bool = False,
-    auto_edit_recent: bool = True,
+    navigation_context: bool = False,
+    function_context_key: Optional[str] = None,
 ) -> Message:
     """Send new message or edit existing one with smart fallback.
+
+    Usage rules:
+    - NEW messages: on first interaction, entity creation, errors
+    - EDITING: on navigation, status updates, pagination
+    - FUNCTION CONTEXT: specify function_context_key to edit function-specific message
 
     :param message: Telegram message object
     :param text: Message text
     :param keyboard: Inline keyboard markup (optional)
     :param edit_mode: If True, try to edit existing message first
-    :param auto_edit_recent: If True and edit_mode is False, try to edit recent bot message
+    :param navigation_context: If True, always prefer editing for navigation flows
+    :param function_context_key: Key to identify function-specific message for editing
     :return: Sent or edited message
     """
     if not isinstance(message, Message):
@@ -196,14 +283,43 @@ async def send_or_edit_message(
     
     user_id = message.from_user.id if message.from_user else None
 
-    if edit_mode:
-        # Проверяем, изменилось ли содержимое
+    # Check if we have a function-specific message to edit
+    if function_context_key:
+        context_message = await get_function_context_message(function_context_key)
+        if context_message:
+            # Edit the function-specific message
+            inline_keyboard = (
+                keyboard if isinstance(keyboard, InlineKeyboardMarkup) else None
+            )
+
+            if not has_message_content_changed(context_message, text, inline_keyboard):
+                # Content hasn't changed, return existing message
+                logger.debug(f"Function context message content unchanged, skipping edit for {function_context_key}")
+                return context_message
+
+            try:
+                await context_message.edit_text(
+                    text, parse_mode=ParseMode.HTML, reply_markup=inline_keyboard
+                )
+                # Update stored content after successful editing
+                if user_id:
+                    _last_message_content[user_id] = {
+                        "text": normalize_text(text),
+                        "keyboard": inline_keyboard,
+                    }
+                return context_message
+            except Exception as e:
+                logger.warning(f"Failed to edit function context message {function_context_key}: {e}")
+                # Continue with normal flow
+
+    if edit_mode or navigation_context:
+        # For navigation always prefer editing
         inline_keyboard = (
             keyboard if isinstance(keyboard, InlineKeyboardMarkup) else None
         )
 
         if not has_message_content_changed(message, text, inline_keyboard):
-            # Содержимое не изменилось, возвращаем существующее сообщение
+            # Content hasn't changed, return existing message
             logger.debug("Message content unchanged, skipping edit")
             return message
 
@@ -211,7 +327,7 @@ async def send_or_edit_message(
             await message.edit_text(
                 text, parse_mode=ParseMode.HTML, reply_markup=inline_keyboard
             )
-            # Обновляем сохраненное содержимое после успешного редактирования
+            # Update stored content after successful editing
             if user_id:
                 _last_message_content[user_id] = {
                     "text": normalize_text(text),
@@ -220,6 +336,7 @@ async def send_or_edit_message(
             return message
         except Exception as e:
             logger.warning(f"Failed to edit message: {e}")
+            # For navigation fallback to sending new message
             sent_message = await message.answer(
                 text,
                 parse_mode=ParseMode.HTML,
@@ -229,38 +346,7 @@ async def send_or_edit_message(
                 await track_bot_message(user_id, sent_message, text, inline_keyboard)
             return sent_message
     else:
-        # Try to edit recent bot message if auto_edit_recent is enabled
-        if auto_edit_recent and user_id:
-            last_bot_message = await get_last_bot_message(user_id)
-            if last_bot_message:
-                # Проверяем, изменилось ли содержимое перед редактированием
-                inline_keyboard = (
-                    keyboard if isinstance(keyboard, InlineKeyboardMarkup) else None
-                )
-
-                if not has_message_content_changed(
-                    last_bot_message, text, inline_keyboard
-                ):
-                    # Содержимое не изменилось, возвращаем существующее сообщение
-                    logger.debug("Recent message content unchanged, skipping auto-edit")
-                    return last_bot_message
-
-                try:
-                    await last_bot_message.edit_text(
-                        text, parse_mode=ParseMode.HTML, reply_markup=inline_keyboard
-                    )
-                    # Обновляем сохраненное содержимое после успешного редактирования
-                    if user_id:
-                        _last_message_content[user_id] = {
-                            "text": normalize_text(text),
-                            "keyboard": inline_keyboard,
-                        }
-                    return last_bot_message
-                except Exception as e:
-                    logger.debug(f"Failed to auto-edit recent message: {e}")
-                    # Continue with sending new message
-
-        # Отправляем новое сообщение
+        # Send new message
         sent_message = await message.answer(
             text,
             parse_mode=ParseMode.HTML,
@@ -272,6 +358,10 @@ async def send_or_edit_message(
                 keyboard if isinstance(keyboard, InlineKeyboardMarkup) else None
             )
             await track_bot_message(user_id, sent_message, text, inline_keyboard)
+
+            # Save message for function context if specified
+            if function_context_key:
+                await set_function_context_message(function_context_key, sent_message)
 
         return sent_message
 

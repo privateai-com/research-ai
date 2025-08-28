@@ -81,7 +81,7 @@ async def command_admin_settings(message: Message) -> None:
         settings_text = _generate_settings_report()
         
         await send_or_edit_message(
-            message, settings_text, auto_edit_recent=True
+            message, settings_text
         )
         
     except Exception as e:
@@ -171,7 +171,7 @@ async def command_admin_maintenance(message: Message) -> None:
             response_text += "\n\n✅ System is now fully operational"
         
         await send_or_edit_message(
-            message, response_text, auto_edit_recent=True
+            message, response_text, 
         )
         
         logger.info(f"Admin {message.from_user.id} {status.lower()} maintenance mode")
@@ -217,7 +217,7 @@ async def command_admin_rate_limit(message: Message) -> None:
         """)
         
         await send_or_edit_message(
-            message, rate_limits_text, auto_edit_recent=True
+            message, rate_limits_text, 
         )
         
     except Exception as e:
@@ -264,7 +264,7 @@ async def command_admin_features(message: Message) -> None:
         """)
         
         await send_or_edit_message(
-            message, features_text, auto_edit_recent=True
+            message, features_text, 
         )
         
     except Exception as e:
@@ -309,7 +309,7 @@ async def command_admin_limits(message: Message) -> None:
         """)
         
         await send_or_edit_message(
-            message, limits_text, auto_edit_recent=True
+            message, limits_text, 
         )
         
     except Exception as e:

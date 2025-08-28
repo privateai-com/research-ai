@@ -38,7 +38,7 @@ async def command_settings(message: Message) -> None:
     # Validate user access
     is_valid, error_msg = await validate_user_access(message)
     if not is_valid:
-        await send_or_edit_message(message, error_msg, auto_edit_recent=True)
+        await send_or_edit_message(message, error_msg
         return
     
     try:
@@ -73,7 +73,7 @@ async def command_settings(message: Message) -> None:
         ])
         
         await send_or_edit_message(
-            message, settings_text, keyboard, auto_edit_recent=True
+            message, settings_text, keyboard, 
         )
         
     except Exception as e:

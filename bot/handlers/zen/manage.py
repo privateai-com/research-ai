@@ -60,7 +60,7 @@ async def command_zen_status(message: Message) -> None:
         ])
 
         await send_or_edit_message(
-            message, status_text, keyboard, auto_edit_recent=True
+            message, status_text, keyboard, 
         )
 
     except Exception as e:

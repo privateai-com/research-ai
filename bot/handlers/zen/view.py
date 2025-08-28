@@ -337,7 +337,7 @@ async def command_zen_history(message: Message) -> None:
         ])
 
         await send_or_edit_message(
-            message, history_text, keyboard, auto_edit_recent=True
+            message, history_text, keyboard, 
         )
 
     except Exception as e:
@@ -724,7 +724,7 @@ async def command_zen_history(message: Message) -> None:
         ])
         
         await send_or_edit_message(
-            message, history_text, keyboard, auto_edit_recent=True
+            message, history_text, keyboard, 
         )
         
     except Exception as e:

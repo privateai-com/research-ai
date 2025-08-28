@@ -6,6 +6,7 @@ information, status updates, results, and user interface formatting.
 """
 
 from textwrap import dedent
+from typing import Optional
 from aiogram.types import Message
 
 from shared.db import get_user_tasks, list_recent_analyses_for_user, TaskStatus
@@ -27,13 +28,15 @@ logger = get_logger(__name__)
 
 
 async def show_detailed_status(
-    message: Message, user, *, edit_mode: bool = False
+    message: Message, user, *, edit_mode: bool = False, navigation_context: bool = False, function_context_key: Optional[str] = None
 ) -> None:
     """Show detailed interactive status.
 
     :param message: Telegram message
     :param user: User object
     :param edit_mode: If True, edit existing message instead of sending new one
+    :param navigation_context: If True, use navigation context for message handling
+    :param function_context_key: Key for function-specific message tracking
     """
     user_tasks = await get_user_tasks(user.id)
 
@@ -41,13 +44,19 @@ async def show_detailed_status(
         status_text = '📊 <b>No tasks yet</b>\n\nPress "🔬 New Task" to get started!'
         keyboard = create_empty_state_keyboard()
 
-        await send_or_edit_message(message, status_text, keyboard, edit_mode)
+        await send_or_edit_message(
+            message, status_text, keyboard, edit_mode,
+            navigation_context=navigation_context,
+            function_context_key=function_context_key
+        )
         return
 
     # Group tasks by status
     active_tasks = [
         t for t in user_tasks if t.status in [TaskStatus.QUEUED, TaskStatus.PROCESSING]
     ]
+    paused_tasks = [t for t in user_tasks if t.status == TaskStatus.PAUSED]
+    cancelled_tasks = [t for t in user_tasks if t.status == TaskStatus.CANCELLED]
     completed_tasks = [t for t in user_tasks if t.status == TaskStatus.COMPLETED]
     failed_tasks = [t for t in user_tasks if t.status == TaskStatus.FAILED]
 
@@ -90,21 +99,43 @@ async def show_detailed_status(
     else:
         status_text += "🔄 <b>No active tasks</b>\n\n"
 
+    # Show paused tasks
+    if paused_tasks:
+        status_text += "⏸️ <b>Paused Tasks:</b>\n"
+        for task in paused_tasks[:3]:  # Show first 3 paused tasks
+            emoji = get_status_emoji(task.status)
+            status_text += f"{emoji} <b>#{task.id}</b>: {escape_html(cut_text(task.description, 40))}\n"
+            status_text += "   ⏸️ <i>Task is paused</i>\n\n"
+
+    # Show cancelled tasks
+    if cancelled_tasks:
+        status_text += "🚫 <b>Cancelled Tasks:</b>\n"
+        for task in cancelled_tasks[:3]:  # Show first 3 cancelled tasks
+            emoji = get_status_emoji(task.status)
+            status_text += f"{emoji} <b>#{task.id}</b>: {escape_html(cut_text(task.description, 40))}\n"
+            status_text += "   🚫 <i>Task was cancelled</i>\n\n"
+
     # Summary stats
-    if completed_tasks or failed_tasks:
+    if completed_tasks or failed_tasks or paused_tasks or cancelled_tasks:
         status_text += "📈 <b>Summary:</b>\n"
+        if active_tasks:
+            status_text += f"   🔄 Active: {len(active_tasks)}\n"
+        if paused_tasks:
+            status_text += f"   ⏸️ Paused: {len(paused_tasks)}\n"
+        if cancelled_tasks:
+            status_text += f"   🚫 Cancelled: {len(cancelled_tasks)}\n"
         if completed_tasks:
             status_text += f"   ✅ Completed: {len(completed_tasks)}\n"
         if failed_tasks:
             status_text += f"   ❌ Failed: {len(failed_tasks)}\n"
 
-    keyboard = create_status_keyboard(active_tasks, completed_tasks)
+    keyboard = create_status_keyboard(active_tasks, completed_tasks, paused_tasks, cancelled_tasks)
 
-    await send_or_edit_message(message, status_text, keyboard, edit_mode)
+    await send_or_edit_message(message, status_text, keyboard, edit_mode, navigation_context=navigation_context)
 
 
 async def show_task_selection(
-    message: Message, user, page: int = 0, *, edit_mode: bool = False
+    message: Message, user, page: int = 0, *, edit_mode: bool = False, navigation_context: bool = False
 ) -> None:
     """Show task selection for viewing results.
 
@@ -112,6 +143,7 @@ async def show_task_selection(
     :param user: User object
     :param page: Page number for pagination
     :param edit_mode: If True, edit existing message instead of sending new one
+    :param navigation_context: If True, use navigation context for message handling
     """
     # Get user tasks
     user_tasks = await get_user_tasks(user.id)
@@ -120,18 +152,18 @@ async def show_task_selection(
         text = "📚 <b>No tasks yet</b>\n\nCreate a task and wait for findings!"
         keyboard = create_empty_state_keyboard()
 
-        await send_or_edit_message(message, text, keyboard, edit_mode)
+        await send_or_edit_message(message, text, keyboard, edit_mode, navigation_context=navigation_context)
         return
 
     # Create task pagination handler
     task_pagination = TaskPaginationHandler(user_tasks)
     text, keyboard = task_pagination.get_page_data(page)
 
-    await send_or_edit_message(message, text, keyboard, edit_mode)
+    await send_or_edit_message(message, text, keyboard, edit_mode, navigation_context=navigation_context)
 
 
 async def show_task_results(
-    message: Message, user, task_id: int, page: int = 0, *, edit_mode: bool = False
+    message: Message, user, task_id: int, page: int = 0, *, edit_mode: bool = False, navigation_context: bool = False
 ) -> None:
     """Show results for a specific task.
 
@@ -140,6 +172,7 @@ async def show_task_results(
     :param task_id: Task ID to show results for
     :param page: Page number for pagination
     :param edit_mode: If True, edit existing message instead of sending new one
+    :param navigation_context: If True, use navigation context for message handling
     """
     # Get results for specific task
     try:
@@ -168,14 +201,14 @@ async def show_task_results(
         text = f"📚 <b>No results for Task #{task_id}</b>\n\nThis task may still be processing or has no findings yet."
         keyboard = create_empty_state_keyboard()
 
-        await send_or_edit_message(message, text, keyboard, edit_mode)
+        await send_or_edit_message(message, text, keyboard, edit_mode, navigation_context=navigation_context)
         return
 
     # Create results pagination handler
     results_pagination = ResultsPaginationHandler(task_analyses)
     text, keyboard = results_pagination.get_page_data(page)
 
-    await send_or_edit_message(message, text, keyboard, edit_mode)
+    await send_or_edit_message(message, text, keyboard, edit_mode, navigation_context=navigation_context)
 
 
 async def show_individual_result(
@@ -224,7 +257,7 @@ async def show_individual_result(
 
     message_obj = safe_message_from_callback(message)
     if message_obj:
-        await send_or_edit_message(message_obj, result_text, keyboard, edit_mode=True)
+        await send_or_edit_message(message_obj, result_text, keyboard, navigation_context=True)
 
 
 async def show_additional_sources(message: Message, paper, result_idx: int) -> None:
@@ -248,7 +281,7 @@ async def show_additional_sources(message: Message, paper, result_idx: int) -> N
 
     message_obj = safe_message_from_callback(message)
     if message_obj:
-        await send_or_edit_message(message_obj, sources_text, keyboard, edit_mode=True)
+        await send_or_edit_message(message_obj, sources_text, keyboard, navigation_context=True)
 
 
 async def show_task_details(message: Message, user, task_id: int) -> None:
@@ -263,7 +296,7 @@ async def show_task_details(message: Message, user, task_id: int) -> None:
     task = next((t for t in user_tasks if t.id == task_id), None)
 
     if not task:
-        await send_or_edit_message(message, "❌ Task not found.", auto_edit_recent=True)
+        await send_or_edit_message(message, "❌ Task not found.")
         return
 
     # Create detailed task information
@@ -291,6 +324,6 @@ async def show_task_details(message: Message, user, task_id: int) -> None:
         task.status in [TaskStatus.COMPLETED, TaskStatus.PROCESSING]
         and results_count > 0
     )
-    keyboard = create_task_details_keyboard(task_id, has_results)
+    keyboard = create_task_details_keyboard(task_id, has_results, task.status)
 
-    await send_or_edit_message(message, details_text, keyboard, edit_mode=True)
+    await send_or_edit_message(message, details_text, keyboard, navigation_context=True)

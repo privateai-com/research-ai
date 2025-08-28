@@ -36,7 +36,7 @@ async def command_task_management(message: Message) -> None:
     # Validate user access
     is_valid, error_msg = await validate_user_access(message)
     if not is_valid:
-        await send_or_edit_message(message, error_msg, auto_edit_recent=True)
+        await send_or_edit_message(message, error_msg
         return
     
     try:
@@ -75,7 +75,7 @@ async def command_task_management(message: Message) -> None:
         ])
         
         await send_or_edit_message(
-            message, management_text, keyboard, auto_edit_recent=True
+            message, management_text, keyboard, 
         )
         
     except Exception as e:

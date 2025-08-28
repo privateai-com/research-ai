@@ -61,7 +61,7 @@ async def command_admin_users(message: Message) -> None:
         <i>User management features are being implemented</i>
         """)
         
-        await send_or_edit_message(message, users_text, auto_edit_recent=True)
+        await send_or_edit_message(message, users_text)
         
     except Exception as e:
         logger.error(f"Error showing users overview: {e}")

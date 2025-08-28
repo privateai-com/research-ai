@@ -75,7 +75,7 @@ async def command_task_settings(message: Message) -> None:
         ])
         
         await send_or_edit_message(
-            message, task_settings_text, keyboard, auto_edit_recent=True
+            message, task_settings_text, keyboard, 
         )
         
     except Exception as e:

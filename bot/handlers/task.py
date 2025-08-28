@@ -10,7 +10,11 @@ from aiogram.filters import Command, StateFilter
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
-from bot.handlers.utils.messages import send_or_edit_message, safe_message_from_callback
+from bot.handlers.utils.messages import (
+    send_or_edit_message,
+    safe_message_from_callback,
+    generate_context_key,
+)
 from bot.handlers.utils.task_operations import (
     rate_limit_check,
     create_task_for_user,
@@ -27,8 +31,15 @@ from bot.handlers.utils.task_display import (
     show_additional_sources,
     show_task_details,
 )
+from bot.handlers.utils.ui import get_main_menu_keyboard
 from bot.handlers.utils.validation import validate_user_access
 from shared.db import get_or_create_user, get_user_tasks
+from shared.database.operations.task import (
+    cancel_user_task,
+    pause_user_task,
+    resume_user_task,
+    cancel_all_user_tasks,
+)
 from shared.logging import get_logger
 
 router = Router(name="tasks")
@@ -75,9 +86,7 @@ async def command_create_task(message: Message, state: FSMContext) -> None:
     if args:
         description = " ".join(args)
         if not message.from_user:
-            await send_or_edit_message(
-                message, "❌ Error: could not determine user.", auto_edit_recent=True
-            )
+            await send_or_edit_message(message, "❌ Error: could not determine user.")
             return
 
         user = await get_or_create_user(
@@ -105,13 +114,179 @@ async def cancel_task_creation_handler(message: Message, state: FSMContext) -> N
     await cancel_task_creation(message, state)
 
 
+@router.message(Command("cancel_task"))
+async def cancel_task_command_handler(message: Message) -> None:
+    """Cancel a specific task by ID."""
+    try:
+        # Parse command arguments
+        args = message.text.split()[1:] if message.text else []
+        if not args:
+            await send_or_edit_message(
+                message,
+                "❌ Please specify task ID to cancel.\n\nUsage: /cancel_task <task_id>",
+            )
+            return
+
+        task_id_str = args[0]
+        if not task_id_str.isdigit():
+            await send_or_edit_message(
+                message,
+                "❌ Invalid task ID. Please provide a number.",
+            )
+            return
+
+        task_id = int(task_id_str)
+        user = await get_or_create_user(message.from_user.id)
+
+        # Cancel the task
+        success = await cancel_user_task(user.id, task_id)
+
+        if success:
+            await send_or_edit_message(
+                message,
+                f"✅ Task #{task_id} cancelled successfully!",
+            )
+        else:
+            await send_or_edit_message(
+                message,
+                f"❌ Could not cancel task #{task_id}. It may not exist or already be completed.",
+            )
+
+    except Exception as e:
+        logger.error(f"Error in cancel_task command: {e}")
+        await send_or_edit_message(
+            message,
+            "❌ Error cancelling task.",
+        )
+
+
+@router.message(Command("pause_task"))
+async def pause_task_command_handler(message: Message) -> None:
+    """Pause a specific task by ID."""
+    try:
+        # Parse command arguments
+        args = message.text.split()[1:] if message.text else []
+        if not args:
+            await send_or_edit_message(
+                message,
+                "❌ Please specify task ID to pause.\n\nUsage: /pause_task <task_id>",
+            )
+            return
+
+        task_id_str = args[0]
+        if not task_id_str.isdigit():
+            await send_or_edit_message(
+                message,
+                "❌ Invalid task ID. Please provide a number.",
+            )
+            return
+
+        task_id = int(task_id_str)
+        user = await get_or_create_user(message.from_user.id)
+
+        # Pause the task
+        success = await pause_user_task(user.id, task_id)
+
+        if success:
+            await send_or_edit_message(
+                message,
+                f"⏸️ Task #{task_id} paused successfully!",
+            )
+        else:
+            await send_or_edit_message(
+                message,
+                f"❌ Could not pause task #{task_id}. It may not be active or may not exist.",
+            )
+
+    except Exception as e:
+        logger.error(f"Error in pause_task command: {e}")
+        await send_or_edit_message(
+            message,
+            "❌ Error pausing task.",
+        )
+
+
+@router.message(Command("resume_task"))
+async def resume_task_command_handler(message: Message) -> None:
+    """Resume a paused task by ID."""
+    try:
+        # Parse command arguments
+        args = message.text.split()[1:] if message.text else []
+        if not args:
+            await send_or_edit_message(
+                message,
+                "❌ Please specify task ID to resume.\n\nUsage: /resume_task <task_id>",
+            )
+            return
+
+        task_id_str = args[0]
+        if not task_id_str.isdigit():
+            await send_or_edit_message(
+                message,
+                "❌ Invalid task ID. Please provide a number.",
+            )
+            return
+
+        task_id = int(task_id_str)
+        user = await get_or_create_user(message.from_user.id)
+
+        # Resume the task
+        success = await resume_user_task(user.id, task_id)
+
+        if success:
+            await send_or_edit_message(
+                message,
+                f"▶️ Task #{task_id} resumed successfully!",
+            )
+        else:
+            await send_or_edit_message(
+                message,
+                f"❌ Could not resume task #{task_id}. It may not be paused or may not exist.",
+            )
+
+    except Exception as e:
+        logger.error(f"Error in resume_task command: {e}")
+        await send_or_edit_message(
+            message,
+            "❌ Error resuming task.",
+        )
+
+
+@router.message(Command("cancel_all"))
+async def cancel_all_tasks_command_handler(message: Message) -> None:
+    """Cancel all active tasks for the user."""
+    try:
+        user = await get_or_create_user(message.from_user.id)
+
+        # Cancel all active tasks
+        cancelled_count = await cancel_all_user_tasks(user.id)
+
+        if cancelled_count > 0:
+            await send_or_edit_message(
+                message,
+                f"✅ Successfully cancelled {cancelled_count} active task(s)!",
+            )
+        else:
+            await send_or_edit_message(
+                message,
+                "ℹ️ No active tasks to cancel.",
+            )
+
+    except Exception as e:
+        logger.error(f"Error in cancel_all command: {e}")
+        await send_or_edit_message(
+            message,
+            "❌ Error cancelling tasks.",
+        )
+
+
 @router.message(Command("status"))
 async def command_status_handler(message: Message) -> None:
     """Show interactive task status with detailed information."""
     try:
         is_valid, error_msg = await validate_user_access(message)
         if not is_valid:
-            await send_or_edit_message(message, error_msg, auto_edit_recent=True)
+            await send_or_edit_message(message, error_msg)
             return
 
         # Rate limiting check
@@ -119,14 +294,18 @@ async def command_status_handler(message: Message) -> None:
             return
 
         user = await get_or_create_user(message.from_user.id)  # type: ignore
+
+        # Generate context key for status function
+        context_key = generate_context_key("status", user.id)
+
         await show_detailed_status(
-            message, user, edit_mode=False
-        )  # Allow auto-edit of recent message
+            message, user, edit_mode=False, function_context_key=context_key
+        )
 
     except Exception as e:
         logger.error(f"Error in /status command: {e}")
         error_text = "❌ An error occurred while getting status."
-        await send_or_edit_message(message, error_text, auto_edit_recent=True)
+        await send_or_edit_message(message, error_text)
 
 
 @router.message(Command("history"))
@@ -135,7 +314,7 @@ async def command_history_handler(message: Message) -> None:
     try:
         is_valid, error_msg = await validate_user_access(message)
         if not is_valid:
-            await send_or_edit_message(message, error_msg, auto_edit_recent=True)
+            await send_or_edit_message(message, error_msg)
             return
 
         # Rate limiting check
@@ -150,7 +329,7 @@ async def command_history_handler(message: Message) -> None:
     except Exception as e:
         logger.error(f"Error in /history command: {e}")
         error_text = "❌ An error occurred while getting results."
-        await send_or_edit_message(message, error_text, auto_edit_recent=True)
+        await send_or_edit_message(message, error_text)
 
 
 # Callback handlers for interactive features
@@ -167,8 +346,14 @@ async def handle_refresh_status(callback: CallbackQuery) -> None:
         # Get the message for editing
         status_message = safe_message_from_callback(callback.message)
         if status_message:
-            # Use edit_mode to minimize new message creation
-            await show_detailed_status(status_message, user, edit_mode=True)
+            # Use function context for status updates
+            context_key = generate_context_key("status", user.id)
+            await show_detailed_status(
+                status_message,
+                user,
+                navigation_context=True,
+                function_context_key=context_key,
+            )
             await callback.answer("✅ Status updated!")
         else:
             await callback.answer("❌ Error: message not accessible.")
@@ -189,7 +374,7 @@ async def handle_show_results_list(callback: CallbackQuery) -> None:
         message = safe_message_from_callback(callback.message)
 
         if message:
-            await show_task_selection(message, user, 0, edit_mode=True)
+            await show_task_selection(message, user, 0, navigation_context=True)
             await callback.answer()
         else:
             await callback.answer("❌ Error: message not accessible.")
@@ -268,7 +453,7 @@ async def handle_view_task_results(callback: CallbackQuery) -> None:
             return
 
         # Show task results
-        await show_task_results(message, user, task_id, 0, edit_mode=True)
+        await show_task_results(message, user, task_id, 0, navigation_context=True)
         await callback.answer()
 
     except ValueError as e:
@@ -290,7 +475,7 @@ async def handle_back_to_tasks(callback: CallbackQuery) -> None:
     message = safe_message_from_callback(callback.message)
 
     if message:
-        await show_task_selection(message, user, 0, edit_mode=True)
+        await show_task_selection(message, user, 0, navigation_context=True)
 
     await callback.answer()
 
@@ -306,7 +491,7 @@ async def handle_back_to_status(callback: CallbackQuery) -> None:
     message = safe_message_from_callback(callback.message)
 
     if message:
-        await show_detailed_status(message, user, edit_mode=True)
+        await show_detailed_status(message, user, navigation_context=True)
 
     await callback.answer()
 
@@ -322,7 +507,7 @@ async def handle_back_to_results(callback: CallbackQuery) -> None:
     message = safe_message_from_callback(callback.message)
 
     if message:
-        await show_task_selection(message, user, 0, edit_mode=True)
+        await show_task_selection(message, user, 0, navigation_context=True)
 
     await callback.answer()
 
@@ -394,7 +579,7 @@ async def handle_task_selection_callback(callback: CallbackQuery) -> None:
         message = safe_message_from_callback(callback.message)
 
         if message:
-            await show_task_results(message, user, task.id, edit_mode=True)
+            await show_task_results(message, user, task.id, navigation_context=True)
             await callback.answer()
         else:
             await callback.answer("❌ Error: message not accessible.")
@@ -418,7 +603,7 @@ async def handle_task_refresh(callback: CallbackQuery) -> None:
     message = safe_message_from_callback(callback.message)
 
     if message:
-        await show_task_selection(message, user, 0, edit_mode=True)
+        await show_task_selection(message, user, 0, navigation_context=True)
 
     await callback.answer("✅ Task list refreshed!")
 
@@ -449,7 +634,7 @@ async def handle_results_pagination(callback: CallbackQuery) -> None:
         if message:
             # Extract task_id from callback data or use a default approach
             # For now, we'll show all results since task filtering isn't fully implemented
-            await show_task_results(message, user, 0, page, edit_mode=True)
+            await show_task_results(message, user, 0, page, navigation_context=True)
             await callback.answer()
         else:
             await callback.answer("❌ Error: message not accessible.")
@@ -548,7 +733,7 @@ async def handle_results_refresh(callback: CallbackQuery) -> None:
     message = safe_message_from_callback(callback.message)
 
     if message:
-        await show_task_results(message, user, 0, 0, edit_mode=True)
+        await show_task_results(message, user, 0, 0, navigation_context=True)
 
     await callback.answer("✅ Results refreshed!")
 
@@ -708,6 +893,131 @@ async def handle_more_sources_callback(callback: CallbackQuery) -> None:
     except Exception as e:
         logger.error(f"Error loading sources: {e}")
         await callback.answer("❌ Error loading sources.")
+
+
+# Task management handlers
+@router.callback_query(F.data.startswith("cancel_task_"))
+async def handle_cancel_task(callback: CallbackQuery) -> None:
+    """Handle task cancellation."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract task ID
+        parts = callback.data.split("_")
+        if len(parts) < 3 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid task data.")
+            return
+
+        task_id = int(parts[-1])
+        logger.info(f"User {callback.from_user.id} attempting to cancel task {task_id}")
+
+        user = await get_or_create_user(callback.from_user.id)
+        logger.info(f"User {user.id} loaded for task cancellation")
+
+        # Cancel the task using async version
+        success = await cancel_user_task(user.id, task_id)
+        logger.info(f"Task cancellation result for task {task_id}: {success}")
+
+        if success:
+            await callback.answer("✅ Task cancelled successfully!")
+
+            # Simple response without complex UI updates to avoid event loop issues
+            await callback.message.answer(
+                f"✅ Task #{task_id} has been cancelled successfully!\n\n"
+                "Use /status to see updated task list.",
+                reply_markup=get_main_menu_keyboard(),
+            )
+        else:
+            await callback.answer("❌ Could not cancel task.")
+
+    except Exception as e:
+        logger.error(f"Error cancelling task: {e}", exc_info=True)
+        await callback.answer("❌ Error cancelling task.")
+
+
+@router.callback_query(F.data.startswith("pause_task_"))
+async def handle_pause_task(callback: CallbackQuery) -> None:
+    """Handle task pausing."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract task ID
+        parts = callback.data.split("_")
+        if len(parts) < 3 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid task data.")
+            return
+
+        task_id = int(parts[-1])
+        logger.info(f"User {callback.from_user.id} attempting to pause task {task_id}")
+
+        user = await get_or_create_user(callback.from_user.id)
+        logger.info(f"User {user.id} loaded for task pausing")
+
+        # Pause the task using async version
+        success = await pause_user_task(user.id, task_id)
+        logger.info(f"Task pause result for task {task_id}: {success}")
+
+        if success:
+            await callback.answer("⏸️ Task paused successfully!")
+
+            # Simple response without complex UI updates to avoid event loop issues
+            await callback.message.answer(
+                f"⏸️ Task #{task_id} has been paused successfully!\n\n"
+                "Use /status to see updated task list.\n"
+                "Use /resume_task {task_id} to resume the task.",
+                reply_markup=get_main_menu_keyboard(),
+            )
+        else:
+            await callback.answer("❌ Could not pause task.")
+
+    except Exception as e:
+        logger.error(f"Error pausing task: {e}", exc_info=True)
+        await callback.answer("❌ Error pausing task.")
+
+
+@router.callback_query(F.data.startswith("resume_task_"))
+async def handle_resume_task(callback: CallbackQuery) -> None:
+    """Handle task resumption."""
+    if not callback.data or not callback.from_user:
+        await callback.answer("❌ Error: invalid request.")
+        return
+
+    try:
+        # Extract task ID
+        parts = callback.data.split("_")
+        if len(parts) < 3 or not parts[-1].isdigit():
+            await callback.answer("❌ Error: invalid task data.")
+            return
+
+        task_id = int(parts[-1])
+        logger.info(f"User {callback.from_user.id} attempting to resume task {task_id}")
+
+        user = await get_or_create_user(callback.from_user.id)
+        logger.info(f"User {user.id} loaded for task resumption")
+
+        # Resume the task using async version
+        success = await resume_user_task(user.id, task_id)
+        logger.info(f"Task resume result for task {task_id}: {success}")
+
+        if success:
+            await callback.answer("▶️ Task resumed successfully!")
+
+            # Simple response without complex UI updates to avoid event loop issues
+            await callback.message.answer(
+                f"▶️ Task #{task_id} has been resumed successfully!\n\n"
+                "Use /status to see updated task list.",
+                reply_markup=get_main_menu_keyboard(),
+            )
+        else:
+            await callback.answer("❌ Could not resume task.")
+
+    except Exception as e:
+        logger.error(f"Error resuming task: {e}", exc_info=True)
+        await callback.answer("❌ Error resuming task.")
 
 
 # Click tracking for analytics
