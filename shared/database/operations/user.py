@@ -32,9 +32,8 @@ async def get_or_create_user(
             user = result.scalar_one_or_none()
 
             if user is None:
-                # Set limits based on plan (FREE by default)
-                daily_limit = 5  # Free plan default
-                concurrent_limit = 1  # Free plan default
+                daily_limit = 5
+                concurrent_limit = 1
 
                 user = User(
                     telegram_id=telegram_id,
@@ -49,7 +48,6 @@ async def get_or_create_user(
                 await session.commit()
                 await session.refresh(user)
             else:
-                # Update user info if provided
                 updated = False
                 if username and user.username != username:
                     user.username = username
@@ -93,7 +91,6 @@ async def upgrade_user_plan(
         user.plan = plan
         user.plan_expires_at = expires_at
 
-        # Update limits based on plan
         if plan == UserPlan.PREMIUM:
             user.daily_task_limit = 100
             user.concurrent_task_limit = 5
@@ -115,7 +112,6 @@ async def reset_daily_counters_if_needed(user: User) -> User:
     now = datetime.now()
     if (now - user.last_daily_reset).days >= 1:
         async with SessionLocal() as session:
-            # Re-fetch to avoid stale data
             fresh_user = await session.get(User, user.id)
             if fresh_user and (now - fresh_user.last_daily_reset).days >= 1:
                 fresh_user.daily_tasks_created = 0
@@ -139,19 +135,15 @@ async def check_user_can_create_task(user: User) -> Tuple[bool, str]:
     if not user.is_active:
         return False, "Account deactivated"
 
-    # Check plan expiration for premium users
     if user.plan == UserPlan.PREMIUM and user.plan_expires_at:
         if datetime.now() > user.plan_expires_at:
             return False, "Premium plan expired"
 
-    # Reset daily counters if needed
     user = await reset_daily_counters_if_needed(user)
 
-    # Check daily limit
     if user.daily_tasks_created >= user.daily_task_limit:
         return False, f"Daily task limit reached ({user.daily_task_limit})"
 
-    # Check concurrent tasks
     async with SessionLocal() as session:
         active_count = await session.execute(
             select(func.count(UserTask.id)).where(

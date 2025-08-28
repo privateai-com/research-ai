@@ -60,7 +60,6 @@ async def update_agent_status(
                 agent_status.updated_at = datetime.now()
             await session.commit()
     except Exception:
-        # Avoid propagating exceptions from background status updates
         import traceback
 
         traceback.print_exc()

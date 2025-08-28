@@ -54,7 +54,6 @@ async def start_task_processing(task_id: int) -> bool:
         task.processing_started_at = datetime.now()
         task.updated_at = datetime.now()
 
-        # Update queue entry if it exists
         queue_result = await session.execute(
             select(TaskQueue).where(TaskQueue.task_id == task.id)
         )
@@ -82,57 +81,42 @@ async def complete_task_processing(
         if task is None:
             return False
 
-        # Calculate processing time before updating status
         processing_time = 0.0
         if task.processing_started_at:
             end_time = datetime.now()
             processing_time = (end_time - task.processing_started_at).total_seconds()
 
-        # Get queue entry before updating task status
         queue_result = await session.execute(
             select(TaskQueue).where(TaskQueue.task_id == task.id)
         )
         queue_entry = queue_result.scalar_one_or_none()
 
-        # Update task status
         if success:
-            # Increment cycle count first
             task.cycles_completed = task.cycles_completed + 1
 
-            # Check if we've reached the maximum cycles
             if task.cycles_completed >= task.max_cycles:
-                # Task is complete - no more cycles needed
                 task.status = TaskStatus.COMPLETED
                 task.processing_completed_at = datetime.now()
 
-                # Remove from queue as task is fully completed
                 if queue_entry:
                     await session.delete(queue_entry)
 
-                # Check if task has results and send notification
                 results = await get_user_task_results(task.id)
                 has_results = len(results) > 0
 
-                # Send cycle limit notification asynchronously
                 await _notify_cycle_limit_reached(task, has_results)
             else:
-                # More cycles needed - return to queue for next iteration
                 task.status = TaskStatus.QUEUED
-                # Don't set processing_completed_at yet as task is not fully complete
 
-                # Update queue entry to reset processing state
                 if queue_entry:
-                    queue_entry.worker_id = None  # Reset worker assignment
-                    queue_entry.started_at = None  # Reset start time for reprocessing
+                    queue_entry.worker_id = None
+                    queue_entry.started_at = None
                     queue_entry.updated_at = datetime.now()
         else:
             task.status = TaskStatus.FAILED
-            task.processing_completed_at = (
-                datetime.now()
-            )  # Set completion time even for failures
+            task.processing_completed_at = datetime.now()
             task.error_message = error_message
 
-            # Remove from queue as task failed and won't be retried
             if queue_entry:
                 await session.delete(queue_entry)
 
@@ -140,7 +124,6 @@ async def complete_task_processing(
 
         await session.commit()
 
-        # Update global statistics
         from .task_statistics import update_task_statistics
 
         await update_task_statistics(processing_time, success)
@@ -165,14 +148,11 @@ async def create_research_topic_for_user_task(
         if user is None:
             return None
 
-        # Check if research topic already exists for this task
-        # Use full description for exact matching
         existing_result = await session.execute(
             select(ResearchTopic).where(
                 and_(
-                    ResearchTopic.user_id
-                    == user.telegram_id,  # Use telegram_id for legacy compatibility
-                    ResearchTopic.target_topic == user_task.description,  # Exact match
+                    ResearchTopic.user_id == user.telegram_id,
+                    ResearchTopic.target_topic == user_task.description,
                     ResearchTopic.is_active,
                 )
             )
@@ -182,9 +162,8 @@ async def create_research_topic_for_user_task(
         if existing_topic:
             return existing_topic
 
-        # Create new research topic
         topic = ResearchTopic(
-            user_id=user.telegram_id,  # Use telegram_id for legacy compatibility
+            user_id=user.telegram_id,
             target_topic=user_task.description,
             search_area=user_task.title or user_task.description[:100],
             is_active=True,
@@ -208,7 +187,6 @@ async def link_analysis_to_user_task(
     :param user_task: UserTask instance
     """
     async with SessionLocal() as session:
-        # Create finding record
         finding = Finding(
             task_id=user_task.id,
             paper_id=analysis.paper_id,
@@ -238,7 +216,6 @@ async def get_user_task_results(task_id: int) -> List[Tuple[PaperAnalysis, Arxiv
         return [(row[0], row[1]) for row in rows]
 
 
-# Legacy function for compatibility (used in bot/handlers/task.py)
 async def create_user_task(user_id: int, description: str) -> UserTask:
     """Create a user task (legacy function for compatibility).
 
@@ -246,12 +223,10 @@ async def create_user_task(user_id: int, description: str) -> UserTask:
     :param description: Task description
     :returns: UserTask instance
     """
-    # Get or create user by telegram_id
     from .user import get_or_create_user
 
     user = await get_or_create_user(telegram_id=user_id)
 
-    # Use the enhanced task creation function
     from .task import create_user_task_with_queue
 
     task, _ = await create_user_task_with_queue(user, description)
@@ -267,7 +242,6 @@ async def cleanup_orphaned_queue_entries() -> int:
     :returns: Number of orphaned entries cleaned up.
     """
     async with SessionLocal() as session:
-        # Find queue entries for completed/failed tasks
         result = await session.execute(
             select(TaskQueue)
             .join(UserTask)
@@ -275,7 +249,6 @@ async def cleanup_orphaned_queue_entries() -> int:
         )
         orphaned_entries = list(result.scalars().all())
 
-        # Delete orphaned entries
         for entry in orphaned_entries:
             await session.delete(entry)
 
@@ -289,7 +262,6 @@ async def _notify_cycle_limit_reached(user_task: UserTask, has_results: bool) ->
     :param user_task: The completed user task
     :param has_results: Whether the task produced any results
     """
-    # Get user telegram_id for notification
     async with SessionLocal() as session:
         user = await session.get(User, user_task.user_id)
         if user is None:
@@ -299,7 +271,6 @@ async def _notify_cycle_limit_reached(user_task: UserTask, has_results: bool) ->
         plan_name = "Premium" if user.plan == UserPlan.PREMIUM else "Free"
 
         if has_results:
-            # User has results - congratulate and offer to continue
             message = f"""
 🎉 <b>Task #{user_task.id} completed!</b>
 
@@ -317,7 +288,6 @@ async def _notify_cycle_limit_reached(user_task: UserTask, has_results: bool) ->
 Use /task to create a new task or /status to view results.
             """.strip()
         else:
-            # No results found - suggest refinement or premium
             message = f"""
 🔄 <b>Task #{user_task.id} completed</b>
 
@@ -335,7 +305,6 @@ Use /task to create a new task or /status to view results.
 Use /task to create a new task with a refined query.
             """.strip()
 
-        # Create notification task
         data = {"task_type": "cycle_limit_notification", "user_id": telegram_id}
         await create_task(
             task_type="cycle_limit_notification",

@@ -25,10 +25,8 @@ async def create_user_task_with_queue(
     :returns: Tuple of (UserTask, TaskQueue)
     """
     async with SessionLocal() as session:
-        # Determine max cycles based on plan
         max_cycles = 100 if user.plan == UserPlan.PREMIUM else 5
 
-        # Create task
         task = UserTask(
             user_id=user.id,
             title=description[:100] + "..." if len(description) > 100 else description,
@@ -41,10 +39,8 @@ async def create_user_task_with_queue(
         await session.commit()
         await session.refresh(task)
 
-        # Add to queue
         queue_entry = await add_task_to_queue(task)
 
-        # Increment user's daily counter
         user.daily_tasks_created += 1
         user.updated_at = datetime.now()
         await session.merge(user)
@@ -62,7 +58,7 @@ async def get_user_tasks(user_id: int) -> List[UserTask]:
     async with SessionLocal() as session:
         result = await session.execute(
             select(UserTask)
-            .options(selectinload(UserTask.queue_entry))  # Eager load queue_entry
+            .options(selectinload(UserTask.queue_entry))
             .where(UserTask.user_id == user_id)
             .order_by(UserTask.created_at.desc())
         )
@@ -175,7 +171,6 @@ async def cancel_user_task(user_id: int, task_id: int) -> bool:
     """
     try:
         async with SessionLocal() as session:
-            # Use select with options to eagerly load the queue_entry relationship
             stmt = (
                 select(UserTask)
                 .options(selectinload(UserTask.queue_entry))
@@ -187,7 +182,6 @@ async def cancel_user_task(user_id: int, task_id: int) -> bool:
             if task is None or task.user_id != user_id:
                 return False
 
-            # Only allow cancellation of tasks that are not completed or failed
             if task.status in [
                 TaskStatus.COMPLETED,
                 TaskStatus.FAILED,
@@ -199,14 +193,12 @@ async def cancel_user_task(user_id: int, task_id: int) -> bool:
             task.processing_completed_at = datetime.now()
             task.updated_at = datetime.now()
 
-            # Remove from queue if present
             if task.queue_entry:
                 await session.delete(task.queue_entry)
 
             await session.commit()
             return True
     except Exception as e:
-        # Log the error but don't raise it to avoid breaking the callback handler
         logger.error(
             f"Error in cancel_user_task for user {user_id}, task {task_id}: {e}",
             exc_info=True,
@@ -224,10 +216,8 @@ def cancel_user_task_sync(user_id: int, task_id: int) -> bool:
     try:
         import asyncio
 
-        # Check if there's already a running event loop
         try:
             asyncio.get_running_loop()
-            # We're in an async context, create a task and wait for it
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -236,7 +226,6 @@ def cancel_user_task_sync(user_id: int, task_id: int) -> bool:
                 )
                 return future.result()
         except RuntimeError:
-            # No running loop, we can safely create one
             return asyncio.run(cancel_user_task(user_id, task_id))
 
     except Exception as e:
@@ -257,17 +246,14 @@ def pause_user_task_sync(user_id: int, task_id: int) -> bool:
     try:
         import asyncio
 
-        # Check if there's already a running event loop
         try:
             asyncio.get_running_loop()
-            # We're in an async context, create a task and wait for it
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(asyncio.run, pause_user_task(user_id, task_id))
                 return future.result()
         except RuntimeError:
-            # No running loop, we can safely create one
             return asyncio.run(pause_user_task(user_id, task_id))
 
     except Exception as e:
@@ -287,7 +273,6 @@ async def pause_user_task(user_id: int, task_id: int) -> bool:
     """
     try:
         async with SessionLocal() as session:
-            # Use select with options to eagerly load the queue_entry relationship
             stmt = (
                 select(UserTask)
                 .options(selectinload(UserTask.queue_entry))
@@ -299,21 +284,18 @@ async def pause_user_task(user_id: int, task_id: int) -> bool:
             if task is None or task.user_id != user_id:
                 return False
 
-            # Only allow pausing of tasks that are processing or queued
             if task.status not in [TaskStatus.PROCESSING, TaskStatus.QUEUED]:
                 return False
 
             task.status = TaskStatus.PAUSED
             task.updated_at = datetime.now()
 
-            # Remove from queue if present
             if task.queue_entry:
                 await session.delete(task.queue_entry)
 
             await session.commit()
             return True
     except Exception as e:
-        # Log the error but don't raise it to avoid breaking the callback handler
         logger.error(
             f"Error in pause_user_task for user {user_id}, task {task_id}: {e}",
             exc_info=True,
@@ -334,14 +316,12 @@ async def resume_user_task(user_id: int, task_id: int) -> bool:
             if task is None or task.user_id != user_id:
                 return False
 
-            # Only allow resuming of paused tasks
             if task.status != TaskStatus.PAUSED:
                 return False
 
             task.status = TaskStatus.QUEUED
             task.updated_at = datetime.now()
 
-            # Add back to queue
             from .queue import add_task_to_queue
 
             await add_task_to_queue(task)
@@ -349,7 +329,6 @@ async def resume_user_task(user_id: int, task_id: int) -> bool:
             await session.commit()
             return True
     except Exception as e:
-        # Log the error but don't raise it to avoid breaking the callback handler
         logger.error(
             f"Error in resume_user_task for user {user_id}, task {task_id}: {e}",
             exc_info=True,
@@ -367,10 +346,8 @@ def resume_user_task_sync(user_id: int, task_id: int) -> bool:
     try:
         import asyncio
 
-        # Check if there's already a running event loop
         try:
             asyncio.get_running_loop()
-            # We're in an async context, create a task and wait for it
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -379,7 +356,6 @@ def resume_user_task_sync(user_id: int, task_id: int) -> bool:
                 )
                 return future.result()
         except RuntimeError:
-            # No running loop, we can safely create one
             return asyncio.run(resume_user_task(user_id, task_id))
 
     except Exception as e:
@@ -397,7 +373,6 @@ async def cancel_all_user_tasks(user_id: int) -> int:
     :returns: Number of tasks cancelled
     """
     async with SessionLocal() as session:
-        # Use select with options to eagerly load the queue_entry relationship
         result = await session.execute(
             select(UserTask)
             .options(selectinload(UserTask.queue_entry))
@@ -416,7 +391,6 @@ async def cancel_all_user_tasks(user_id: int) -> int:
             task.processing_completed_at = datetime.now()
             task.updated_at = datetime.now()
 
-            # Remove from queue if present
             if task.queue_entry:
                 await session.delete(task.queue_entry)
 
