@@ -7,7 +7,12 @@ defaults, and configuration options for research tasks.
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from textwrap import dedent
 
 from shared.logging import get_logger
@@ -26,13 +31,13 @@ logger = get_logger(__name__)
 @router.message(Command("task_settings"))
 async def command_task_settings(message: Message) -> None:
     """Show task-specific settings.
-    
+
     :param message: Telegram message
     """
     if not message.from_user:
         await message.answer("❌ Error: could not determine user.")
         return
-    
+
     try:
         # TODO: Get current task settings from database
         task_settings_text = dedent("""
@@ -64,20 +69,49 @@ async def command_task_settings(message: Message) -> None:
         • Background processing: ✅ Enabled
         • Resource optimization: ✅ Enabled
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Search Defaults", callback_data="task_search_defaults")],
-            [InlineKeyboardButton(text="📊 Analysis Options", callback_data="task_analysis_options")],
-            [InlineKeyboardButton(text="🔔 Task Notifications", callback_data="task_notifications")],
-            [InlineKeyboardButton(text="⚡ Performance", callback_data="task_performance")],
-            [InlineKeyboardButton(text="📋 Templates", callback_data="task_templates")],
-            [InlineKeyboardButton(text="🔄 Reset Defaults", callback_data="task_reset")]
-        ])
-        
-        await send_or_edit_message(
-            message, task_settings_text, keyboard, 
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔍 Search Defaults", callback_data="task_search_defaults"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Analysis Options",
+                        callback_data="task_analysis_options",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Task Notifications", callback_data="task_notifications"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚡ Performance", callback_data="task_performance"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📋 Templates", callback_data="task_templates"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Reset Defaults", callback_data="task_reset"
+                    )
+                ],
+            ]
         )
-        
+
+        await send_or_edit_message(
+            message,
+            task_settings_text,
+            keyboard,
+        )
+
     except Exception as e:
         logger.error(f"Error showing task settings: {e}")
         await message.answer("❌ Error showing task settings.")
@@ -86,13 +120,13 @@ async def command_task_settings(message: Message) -> None:
 @router.callback_query(lambda c: c.data == "task_search_defaults")
 async def callback_task_search_defaults(callback: CallbackQuery) -> None:
     """Configure default search parameters.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         search_defaults_text = dedent("""
         🔍 <b>Search Defaults</b>
@@ -123,21 +157,43 @@ async def callback_task_search_defaults(callback: CallbackQuery) -> None:
         • Google Scholar: ✅ Enabled
         • IEEE: ❌ Disabled (Pro feature)
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎯 Quality Settings", callback_data="search_quality")],
-            [InlineKeyboardButton(text="📅 Time Range", callback_data="search_time")],
-            [InlineKeyboardButton(text="📊 Result Limits", callback_data="search_limits")],
-            [InlineKeyboardButton(text="🌐 Data Sources", callback_data="search_sources")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="task_settings_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Quality Settings", callback_data="search_quality"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📅 Time Range", callback_data="search_time"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Result Limits", callback_data="search_limits"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🌐 Data Sources", callback_data="search_sources"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="task_settings_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, search_defaults_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing search defaults: {e}")
         await callback.answer("❌ Error showing search defaults.")
@@ -146,13 +202,13 @@ async def callback_task_search_defaults(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "task_templates")
 async def callback_task_templates(callback: CallbackQuery) -> None:
     """Manage task templates.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         # TODO: Get user's saved templates from database
         templates_text = dedent("""
@@ -182,22 +238,48 @@ async def callback_task_templates(callback: CallbackQuery) -> None:
         • Reproducible results
         • Best practice defaults
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="➕ Create Template", callback_data="template_create")],
-            [InlineKeyboardButton(text="📚 Browse System", callback_data="template_system")],
-            [InlineKeyboardButton(text="📝 Edit Template", callback_data="template_edit")],
-            [InlineKeyboardButton(text="🗑️ Delete Template", callback_data="template_delete")],
-            [InlineKeyboardButton(text="📤 Export Templates", callback_data="template_export")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="task_settings_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="➕ Create Template", callback_data="template_create"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📚 Browse System", callback_data="template_system"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📝 Edit Template", callback_data="template_edit"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🗑️ Delete Template", callback_data="template_delete"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📤 Export Templates", callback_data="template_export"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="task_settings_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, templates_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing task templates: {e}")
         await callback.answer("❌ Error showing task templates.")
@@ -206,13 +288,13 @@ async def callback_task_templates(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "task_performance")
 async def callback_task_performance(callback: CallbackQuery) -> None:
     """Configure task performance settings.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         performance_text = dedent("""
         ⚡ <b>Task Performance</b>
@@ -243,21 +325,43 @@ async def callback_task_performance(callback: CallbackQuery) -> None:
         • Performance learning: ✅ Enabled
         • Efficiency tracking: ✅ Enabled
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔄 Concurrency", callback_data="performance_concurrency")],
-            [InlineKeyboardButton(text="⏱️ Timeouts", callback_data="performance_timeouts")],
-            [InlineKeyboardButton(text="💾 Caching", callback_data="performance_caching")],
-            [InlineKeyboardButton(text="📊 Optimization", callback_data="performance_optimization")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="task_settings_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Concurrency", callback_data="performance_concurrency"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⏱️ Timeouts", callback_data="performance_timeouts"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="💾 Caching", callback_data="performance_caching"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Optimization", callback_data="performance_optimization"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="task_settings_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, performance_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing performance settings: {e}")
         await callback.answer("❌ Error showing performance settings.")
@@ -266,13 +370,13 @@ async def callback_task_performance(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "task_settings_back")
 async def callback_task_settings_back(callback: CallbackQuery) -> None:
     """Return to main task settings.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         task_settings_text = dedent("""
         🎯 <b>Task Settings</b>
@@ -303,22 +407,49 @@ async def callback_task_settings_back(callback: CallbackQuery) -> None:
         • Background processing: ✅ Enabled
         • Resource optimization: ✅ Enabled
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Search Defaults", callback_data="task_search_defaults")],
-            [InlineKeyboardButton(text="📊 Analysis Options", callback_data="task_analysis_options")],
-            [InlineKeyboardButton(text="🔔 Task Notifications", callback_data="task_notifications")],
-            [InlineKeyboardButton(text="⚡ Performance", callback_data="task_performance")],
-            [InlineKeyboardButton(text="📋 Templates", callback_data="task_templates")],
-            [InlineKeyboardButton(text="🔄 Reset Defaults", callback_data="task_reset")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔍 Search Defaults", callback_data="task_search_defaults"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Analysis Options",
+                        callback_data="task_analysis_options",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Task Notifications", callback_data="task_notifications"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚡ Performance", callback_data="task_performance"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📋 Templates", callback_data="task_templates"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Reset Defaults", callback_data="task_reset"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, task_settings_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error returning to task settings: {e}")
         await callback.answer("❌ Error returning to task settings.")

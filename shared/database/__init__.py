@@ -25,6 +25,7 @@ from .models import (
 from .operations import (
     # User operations
     get_or_create_user,
+    get_all_users,
     upgrade_user_plan,
     reset_daily_counters_if_needed,
     check_user_can_create_task,
@@ -121,6 +122,7 @@ __all__ = [
     "AgentStatus",
     # Operations
     "get_or_create_user",
+    "get_all_users",
     "upgrade_user_plan",
     "reset_daily_counters_if_needed",
     "check_user_can_create_task",

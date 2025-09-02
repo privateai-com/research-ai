@@ -7,12 +7,15 @@ including status monitoring, cycle management, and task controls.
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from textwrap import dedent
-from datetime import datetime, timedelta
 
 from shared.logging import get_logger
-from bot.handlers.utils.messages import send_or_edit_message, safe_message_from_callback
+from bot.handlers.utils.messages import send_or_edit_message
 
 router = Router(name="zen_manage")
 logger = get_logger(__name__)
@@ -52,15 +55,35 @@ async def command_zen_status(message: Message) -> None:
         Create your first Zen task for continuous research monitoring!
         """)
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🧘‍♂️ Create Zen Task", callback_data="zen_create_start")],
-            [InlineKeyboardButton(text="📊 View Zen Tasks", callback_data="zen_view_tasks")],
-            [InlineKeyboardButton(text="⚙️ Zen Settings", callback_data="zen_settings")],
-            [InlineKeyboardButton(text="🔄 Cycle Status", callback_data="zen_cycle_status")]
-        ])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🧘‍♂️ Create Zen Task", callback_data="zen_create_start"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 View Zen Tasks", callback_data="zen_view_tasks"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚙️ Zen Settings", callback_data="zen_settings"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Cycle Status", callback_data="zen_cycle_status"
+                    )
+                ],
+            ]
+        )
 
         await send_or_edit_message(
-            message, status_text, keyboard, 
+            message,
+            status_text,
+            keyboard,
         )
 
     except Exception as e:

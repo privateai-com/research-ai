@@ -7,6 +7,7 @@ from aiogram import Bot
 from aiogram.enums import ParseMode
 
 from shared.llm import get_agent_model
+
 # TODO: Update import path after utils reorganization
 from bot.handlers.utils.utils import escape_html
 from shared.db import (

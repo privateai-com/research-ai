@@ -1,73 +1,78 @@
-# Zen Handlers Module
+# Zen Tasks Module
 
-This module provides a distraction-free, focused research experience for users seeking deep concentration.
+This module provides continuous research tasks with daily cycle limits for users seeking ongoing research monitoring.
 
 ## Overview
 
-The Zen module creates a minimalist, focused environment for research with:
+The Zen module creates continuous research tasks with:
 
-- **Create** (`create.py`) - Zen session creation and configuration (planned)
-- **Manage** (`manage.py`) - Zen session management and controls (planned)
-- **View** (`view.py`) - Zen mode display and interaction (planned)
+- **Create** (`create.py`) - Zen task creation and configuration (implemented)
+- **Manage** (`manage.py`) - Zen task management and controls (implemented)
+- **View** (`view.py`) - Zen task display and interaction (implemented)
 
 ## Concept
 
-Zen mode is designed for researchers who want:
-- **Minimal distractions** - Clean, focused interface
-- **Deep concentration** - Single-task focus environment
-- **Streamlined workflow** - Essential features only
-- **Peaceful experience** - Calm, distraction-free research
+Zen tasks are designed for researchers who want:
+- **Continuous monitoring** - Ongoing research on specific topics
+- **Daily cycle limits** - Controlled resource usage with daily resets
+- **Background processing** - Automatic research without constant attention
+- **Long-term insights** - Building knowledge over time
 
-## Planned Features
+## Features
 
-### Zen Session Creation
-- Customizable focus topics
-- Session duration settings
-- Notification suppression during sessions
-- Ambient background themes
+### Zen Task Creation
+- Customizable research topics
+- Daily cycle limit configuration
+- Continuous background processing
+- Automatic daily cycle resets
 
-### Zen Environment
-- Minimalist interface design
-- Single research task focus
-- Progress tracking without distractions
-- Automatic session saving and restoration
+### Zen Task Environment
+- Continuous research monitoring
+- Daily cycle tracking
+- Automatic pause/resume on limits
+- Background processing capabilities
 
-### Focus Tools
-- Pomodoro-style focus timers
-- Distraction blockers
-- Progress milestones
-- Session statistics
+### Research Tools
+- Daily cycle management
+- Quality threshold controls
+- Source diversity options
+- Trend tracking capabilities
 
-### Zen Management
-- Session pause/resume functionality
-- Environment customization
-- Focus goal setting
-- Session history and analytics
+### Zen Task Management
+- Task pause/resume functionality
+- Daily cycle limit adjustments
+- Research focus customization
+- Task history and analytics
 
 ## Current Status
 
-The Zen module is currently in planning phase:
-- All handler files are prepared but not yet implemented
+The Zen module is fully implemented:
+- All handler files are functional
 - Core concept and user experience designed
 - Integration points with main bot functionality identified
 
 ## Technical Details
 
-The Zen module will integrate with:
-- Task management system for focused research
-- Notification system for distraction control
-- User session management for Zen state
-- Database for session persistence and history
-- UI customization for Zen environment
+The Zen module integrates with:
+- Task management system for continuous research
+- Notification system for daily summaries
+- User session management for Zen task state
+- Database for task persistence and history
+- Daily cycle limit tracking and reset system
 
-## Future Implementation
+## Implementation
 
 ```python
-# Planned Zen mode commands
-/zen start - Begin a Zen research session
-/zen focus - Set focus topic and goals
-/zen pause - Pause current session
-/zen resume - Resume paused session
-/zen end - Complete current session
-/zen stats - View session statistics
+# Zen task commands
+/zen - Create a new Zen task
+/zen_status - View Zen task status and management
+/zen_history - View Zen task history and analytics
 ```
+
+## Key Features
+
+- **Daily Cycle Limits**: Tasks run continuously with daily cycle limits that reset at 00:00 UTC
+- **Background Processing**: Research continues automatically in the background
+- **Quality Control**: Configurable quality and relevance thresholds
+- **Notification System**: Daily summaries and important finding alerts
+- **Task Management**: Pause, resume, and adjust cycle limits as needed

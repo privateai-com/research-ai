@@ -7,7 +7,12 @@ for users to understand and effectively use the research AI bot.
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import (
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+)
 from textwrap import dedent
 
 from shared.logging import get_logger
@@ -30,18 +35,38 @@ async def command_help_detailed(message: Message) -> None:
         Choose a category below to learn more about using your AI research assistant:
         """)
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Getting Started", callback_data="help_getting_started")],
-            [InlineKeyboardButton(text="🔬 Research Tasks", callback_data="help_research_tasks")],
-            [InlineKeyboardButton(text="📊 Results & Analytics", callback_data="help_results")],
-            [InlineKeyboardButton(text="⚙️ Settings & Notifications", callback_data="help_settings")],
-            [InlineKeyboardButton(text="❓ FAQ", callback_data="help_faq")],
-            [InlineKeyboardButton(text="🆘 Troubleshooting", callback_data="help_troubleshooting")]
-        ])
-
-        await send_or_edit_message(
-            message, help_text, keyboard
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🚀 Getting Started", callback_data="help_getting_started"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔬 Research Tasks", callback_data="help_research_tasks"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Results & Analytics", callback_data="help_results"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚙️ Settings & Notifications", callback_data="help_settings"
+                    )
+                ],
+                [InlineKeyboardButton(text="❓ FAQ", callback_data="help_faq")],
+                [
+                    InlineKeyboardButton(
+                        text="🆘 Troubleshooting", callback_data="help_troubleshooting"
+                    )
+                ],
+            ]
         )
+
+        await send_or_edit_message(message, help_text, keyboard)
 
     except Exception as e:
         logger.error(f"Error showing detailed help: {e}")
@@ -51,13 +76,13 @@ async def command_help_detailed(message: Message) -> None:
 @router.callback_query(lambda c: c.data == "help_getting_started")
 async def callback_help_getting_started(callback: CallbackQuery) -> None:
     """Show getting started guide.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         getting_started_text = dedent("""
         🚀 <b>Getting Started Guide</b>
@@ -96,19 +121,33 @@ async def callback_help_getting_started(callback: CallbackQuery) -> None:
         • "climate change mitigation strategies"
         • "machine learning for drug discovery"
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔬 Try First Task", callback_data="new_task_wizard")],
-            [InlineKeyboardButton(text="📖 Advanced Tips", callback_data="help_advanced_tips")],
-            [InlineKeyboardButton(text="◀️ Back to Help", callback_data="help_main_menu")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔬 Try First Task", callback_data="new_task_wizard"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📖 Advanced Tips", callback_data="help_advanced_tips"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Help", callback_data="help_main_menu"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, getting_started_text, keyboard, navigation_context=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing getting started help: {e}")
         await callback.answer("❌ Error showing guide.")
@@ -117,13 +156,13 @@ async def callback_help_getting_started(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "help_research_tasks")
 async def callback_help_research_tasks(callback: CallbackQuery) -> None:
     """Show research tasks help.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         research_help_text = dedent("""
         🔬 <b>Research Tasks Guide</b>
@@ -173,19 +212,33 @@ async def callback_help_research_tasks(callback: CallbackQuery) -> None:
         • PubMed (biomedical research)
         • Google Scholar (broad academic coverage)
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📝 Task Templates", callback_data="help_task_templates")],
-            [InlineKeyboardButton(text="⏱️ Processing Details", callback_data="help_processing")],
-            [InlineKeyboardButton(text="◀️ Back to Help", callback_data="help_main_menu")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📝 Task Templates", callback_data="help_task_templates"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⏱️ Processing Details", callback_data="help_processing"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Help", callback_data="help_main_menu"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, research_help_text, keyboard, navigation_context=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing research tasks help: {e}")
         await callback.answer("❌ Error showing research help.")
@@ -194,13 +247,13 @@ async def callback_help_research_tasks(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "help_results")
 async def callback_help_results(callback: CallbackQuery) -> None:
     """Show results and analytics help.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         results_help_text = dedent("""
         📊 <b>Results & Analytics Guide</b>
@@ -249,38 +302,52 @@ async def callback_help_results(callback: CallbackQuery) -> None:
         • Click individual results for details
         • Return to task list with back buttons
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎯 Relevance Guide", callback_data="help_relevance")],
-            [InlineKeyboardButton(text="🔔 Notifications", callback_data="help_notifications")],
-            [InlineKeyboardButton(text="◀️ Back to Help", callback_data="help_main_menu")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Relevance Guide", callback_data="help_relevance"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Notifications", callback_data="help_notifications"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Help", callback_data="help_main_menu"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, results_help_text, keyboard, navigation_context=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing results help: {e}")
         await callback.answer("❌ Error showing results help.")
 
 
-# Zen Mode help removed - feature not currently implemented
-# TODO: Add Zen mode help when feature is enabled
+# Zen Tasks help removed - feature not currently implemented
+# TODO: Add Zen tasks help when feature is enabled
 
 
 @router.callback_query(lambda c: c.data == "help_faq")
 async def callback_help_faq(callback: CallbackQuery) -> None:
     """Show frequently asked questions.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         faq_text = dedent("""
         ❓ <b>Frequently Asked Questions</b>
@@ -324,19 +391,33 @@ async def callback_help_faq(callback: CallbackQuery) -> None:
         <b>Q: Are there paid plans available?</b>
         A: Currently only the free plan is available. Premium features may be added in future updates.
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔬 Try Research Task", callback_data="new_task_wizard")],
-            [InlineKeyboardButton(text="🆘 Troubleshooting", callback_data="help_troubleshooting")],
-            [InlineKeyboardButton(text="◀️ Back to Help", callback_data="help_main_menu")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔬 Try Research Task", callback_data="new_task_wizard"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🆘 Troubleshooting", callback_data="help_troubleshooting"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Help", callback_data="help_main_menu"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, faq_text, keyboard, navigation_context=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing FAQ: {e}")
         await callback.answer("❌ Error showing FAQ.")
@@ -345,35 +426,57 @@ async def callback_help_faq(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "help_main_menu")
 async def callback_help_main_menu(callback: CallbackQuery) -> None:
     """Return to main help menu.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         help_text = dedent("""
         📚 <b>Comprehensive Help</b>
         
         Welcome to your AI research assistant! Choose a help category:
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Getting Started", callback_data="help_getting_started")],
-            [InlineKeyboardButton(text="🔬 Research Tasks", callback_data="help_research_tasks")],
-            [InlineKeyboardButton(text="📊 Results & Analytics", callback_data="help_results")],
-            [InlineKeyboardButton(text="⚙️ Settings & Notifications", callback_data="help_settings")],
-            [InlineKeyboardButton(text="❓ FAQ", callback_data="help_faq")],
-            [InlineKeyboardButton(text="🆘 Troubleshooting", callback_data="help_troubleshooting")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🚀 Getting Started", callback_data="help_getting_started"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔬 Research Tasks", callback_data="help_research_tasks"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Results & Analytics", callback_data="help_results"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚙️ Settings & Notifications", callback_data="help_settings"
+                    )
+                ],
+                [InlineKeyboardButton(text="❓ FAQ", callback_data="help_faq")],
+                [
+                    InlineKeyboardButton(
+                        text="🆘 Troubleshooting", callback_data="help_troubleshooting"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, help_text, keyboard, navigation_context=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing help main menu: {e}")
         await callback.answer("❌ Error showing help menu.")
@@ -428,12 +531,31 @@ async def callback_help_settings(callback: CallbackQuery) -> None:
         • Only free plan is currently available
         """)
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔔 Enable Notifications", callback_data="notifications_on")],
-            [InlineKeyboardButton(text="🔕 Disable Notifications", callback_data="notifications_off")],
-            [InlineKeyboardButton(text="📊 View Account", callback_data="show_account")],
-            [InlineKeyboardButton(text="◀️ Back to Help", callback_data="help_main_menu")]
-        ])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Enable Notifications", callback_data="notifications_on"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔕 Disable Notifications",
+                        callback_data="notifications_off",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 View Account", callback_data="show_account"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Help", callback_data="help_main_menu"
+                    )
+                ],
+            ]
+        )
 
         await send_or_edit_message(
             callback.message, settings_help_text, keyboard, navigation_context=True
@@ -519,11 +641,21 @@ async def callback_help_troubleshooting(callback: CallbackQuery) -> None:
         • We search arXiv, PubMed, and Google Scholar databases
         """)
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Try New Task", callback_data="new_task_wizard")],
-            [InlineKeyboardButton(text="❓ FAQ", callback_data="help_faq")],
-            [InlineKeyboardButton(text="◀️ Back to Help", callback_data="help_main_menu")]
-        ])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🚀 Try New Task", callback_data="new_task_wizard"
+                    )
+                ],
+                [InlineKeyboardButton(text="❓ FAQ", callback_data="help_faq")],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Help", callback_data="help_main_menu"
+                    )
+                ],
+            ]
+        )
 
         await send_or_edit_message(
             callback.message, troubleshooting_text, keyboard, navigation_context=True

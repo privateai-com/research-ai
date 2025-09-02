@@ -20,6 +20,10 @@ from bot.handlers import (
     get_notifications_router,
     get_tasks_router,
     get_help_router,
+    get_admin_analytics_router,
+    get_admin_metrics_router,
+    get_admin_settings_router,
+    get_admin_users_router,
 )
 # Lazy imports will be done inside functions
 
@@ -113,11 +117,11 @@ dp.include_router(get_tasks_router())
 dp.include_router(get_help_router())
 dp.include_router(get_general_router())
 
-# TODO: Add admin routers when admin authentication system is implemented
-# dp.include_router(get_admin_analytics_router())
-# dp.include_router(get_admin_metrics_router())
-# dp.include_router(get_admin_settings_router())
-# dp.include_router(get_admin_users_router())
+# Admin routers
+dp.include_router(get_admin_analytics_router())
+dp.include_router(get_admin_metrics_router())
+dp.include_router(get_admin_settings_router())
+dp.include_router(get_admin_users_router())
 
 # TODO: Add zen routers when zen mode is fully implemented
 # dp.include_router(get_zen_create_router())

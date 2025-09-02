@@ -20,7 +20,10 @@ from bot.handlers.utils.ui import (
     create_source_keyboard,
     create_task_details_keyboard,
 )
-from bot.handlers.utils.pagination import TaskPaginationHandler, ResultsPaginationHandler
+from bot.handlers.utils.pagination import (
+    TaskPaginationHandler,
+    ResultsPaginationHandler,
+)
 from bot.handlers.utils.utils import escape_html, cut_text
 from shared.logging import get_logger
 
@@ -28,7 +31,12 @@ logger = get_logger(__name__)
 
 
 async def show_detailed_status(
-    message: Message, user, *, edit_mode: bool = False, navigation_context: bool = False, function_context_key: Optional[str] = None
+    message: Message,
+    user,
+    *,
+    edit_mode: bool = False,
+    navigation_context: bool = False,
+    function_context_key: Optional[str] = None,
 ) -> None:
     """Show detailed interactive status.
 
@@ -45,9 +53,12 @@ async def show_detailed_status(
         keyboard = create_empty_state_keyboard()
 
         await send_or_edit_message(
-            message, status_text, keyboard, edit_mode,
+            message,
+            status_text,
+            keyboard,
+            edit_mode,
             navigation_context=navigation_context,
-            function_context_key=function_context_key
+            function_context_key=function_context_key,
         )
         return
 
@@ -129,13 +140,22 @@ async def show_detailed_status(
         if failed_tasks:
             status_text += f"   ❌ Failed: {len(failed_tasks)}\n"
 
-    keyboard = create_status_keyboard(active_tasks, completed_tasks, paused_tasks, cancelled_tasks)
+    keyboard = create_status_keyboard(
+        active_tasks, completed_tasks, paused_tasks, cancelled_tasks
+    )
 
-    await send_or_edit_message(message, status_text, keyboard, edit_mode, navigation_context=navigation_context)
+    await send_or_edit_message(
+        message, status_text, keyboard, edit_mode, navigation_context=navigation_context
+    )
 
 
 async def show_task_selection(
-    message: Message, user, page: int = 0, *, edit_mode: bool = False, navigation_context: bool = False
+    message: Message,
+    user,
+    page: int = 0,
+    *,
+    edit_mode: bool = False,
+    navigation_context: bool = False,
 ) -> None:
     """Show task selection for viewing results.
 
@@ -152,18 +172,28 @@ async def show_task_selection(
         text = "📚 <b>No tasks yet</b>\n\nCreate a task and wait for findings!"
         keyboard = create_empty_state_keyboard()
 
-        await send_or_edit_message(message, text, keyboard, edit_mode, navigation_context=navigation_context)
+        await send_or_edit_message(
+            message, text, keyboard, edit_mode, navigation_context=navigation_context
+        )
         return
 
     # Create task pagination handler
     task_pagination = TaskPaginationHandler(user_tasks)
     text, keyboard = task_pagination.get_page_data(page)
 
-    await send_or_edit_message(message, text, keyboard, edit_mode, navigation_context=navigation_context)
+    await send_or_edit_message(
+        message, text, keyboard, edit_mode, navigation_context=navigation_context
+    )
 
 
 async def show_task_results(
-    message: Message, user, task_id: int, page: int = 0, *, edit_mode: bool = False, navigation_context: bool = False
+    message: Message,
+    user,
+    task_id: int,
+    page: int = 0,
+    *,
+    edit_mode: bool = False,
+    navigation_context: bool = False,
 ) -> None:
     """Show results for a specific task.
 
@@ -201,14 +231,18 @@ async def show_task_results(
         text = f"📚 <b>No results for Task #{task_id}</b>\n\nThis task may still be processing or has no findings yet."
         keyboard = create_empty_state_keyboard()
 
-        await send_or_edit_message(message, text, keyboard, edit_mode, navigation_context=navigation_context)
+        await send_or_edit_message(
+            message, text, keyboard, edit_mode, navigation_context=navigation_context
+        )
         return
 
     # Create results pagination handler
     results_pagination = ResultsPaginationHandler(task_analyses)
     text, keyboard = results_pagination.get_page_data(page)
 
-    await send_or_edit_message(message, text, keyboard, edit_mode, navigation_context=navigation_context)
+    await send_or_edit_message(
+        message, text, keyboard, edit_mode, navigation_context=navigation_context
+    )
 
 
 async def show_individual_result(
@@ -257,7 +291,9 @@ async def show_individual_result(
 
     message_obj = safe_message_from_callback(message)
     if message_obj:
-        await send_or_edit_message(message_obj, result_text, keyboard, navigation_context=True)
+        await send_or_edit_message(
+            message_obj, result_text, keyboard, navigation_context=True
+        )
 
 
 async def show_additional_sources(message: Message, paper, result_idx: int) -> None:
@@ -281,7 +317,9 @@ async def show_additional_sources(message: Message, paper, result_idx: int) -> N
 
     message_obj = safe_message_from_callback(message)
     if message_obj:
-        await send_or_edit_message(message_obj, sources_text, keyboard, navigation_context=True)
+        await send_or_edit_message(
+            message_obj, sources_text, keyboard, navigation_context=True
+        )
 
 
 async def show_task_details(message: Message, user, task_id: int) -> None:
@@ -310,7 +348,7 @@ async def show_task_details(message: Message, user, task_id: int) -> None:
 
     <b>Description:</b> {escape_html(task.description)}
     <b>Status:</b> {get_status_emoji(task.status)} {task.status}
-    <b>Created:</b> {task.created_at.strftime('%Y-%m-%d %H:%M')}
+    <b>Created:</b> {task.created_at.strftime("%Y-%m-%d %H:%M")}
     <b>Results found:</b> {results_count}
     """)
 

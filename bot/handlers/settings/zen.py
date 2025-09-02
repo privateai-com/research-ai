@@ -1,13 +1,18 @@
 """
-Zen mode settings handlers.
+Zen tasks settings handlers.
 
-This module provides handlers for configuring Zen mode preferences,
-environment settings, and mindful research experience options.
+This module provides handlers for configuring Zen tasks preferences,
+including daily cycle limits, notification settings, and task management.
 """
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from textwrap import dedent
 
 from shared.logging import get_logger
@@ -16,317 +21,516 @@ from bot.handlers.utils.messages import send_or_edit_message
 router = Router(name="settings_zen")
 logger = get_logger(__name__)
 
-# TODO: Implement Zen mode preferences persistence
-# TODO: Add environment theme management
-# TODO: Implement distraction control settings
-# TODO: Add session duration presets
-# TODO: Implement mindfulness integration options
+# TODO: Implement Zen tasks preferences persistence
 
 
 @router.message(Command("zen_settings"))
 async def command_zen_settings(message: Message) -> None:
-    """Show Zen mode settings.
-    
+    """Show Zen tasks settings.
+
     :param message: Telegram message
     """
     if not message.from_user:
         await message.answer("❌ Error: could not determine user.")
         return
-    
+
     try:
         # TODO: Get current Zen preferences from database
         zen_settings_text = dedent("""
-        🧘‍♂️ <b>Zen Mode Settings</b>
+        🧘‍♂️ <b>Zen Tasks Settings</b>
         
-        Configure your focused research experience:
+        Configure your continuous research tasks:
         
-        <b>🎨 Environment:</b>
-        • Theme: Calm (default)
-        • Interface: Minimal
-        • Progress style: Subtle
-        • Color scheme: Peaceful
+        <b>🔄 Daily Cycle Limits:</b>
+        • Default daily cycles: 10
+        • Auto-reset time: 00:00 UTC
+        • Cycle tracking: ✅ Enabled
+        • Overflow handling: Pause until reset
         
-        <b>🔔 Distraction Control:</b>
-        • Regular notifications: 🔕 Suppressed
-        • Emergency only: ✅ Enabled
-        • Session reminders: ✅ Enabled
-        • Break notifications: ✅ Enabled
+        <b>🔔 Notification Preferences:</b>
+        • Daily summaries: ✅ Enabled
+        • New findings alerts: ✅ Enabled (75%+ relevance)
+        • Cycle usage updates: ❌ Disabled
+        • Task status changes: ✅ Enabled
         
-        <b>⏰ Session Defaults:</b>
-        • Default duration: 25 minutes
-        • Auto-extend: ❌ Disabled
-        • Break intervals: Every 25 min
-        • End reminder: 5 min before
+        <b>📊 Task Management:</b>
+        • Auto-pause on limit: ✅ Enabled
+        • Resume on reset: ✅ Enabled
+        • Priority queuing: ❌ Disabled
+        • Background processing: ✅ Enabled
         
-        <b>🧘‍♂️ Mindfulness:</b>
-        • Start meditation: ❌ Disabled
-        • Focus breathing: ❌ Disabled
-        • Progress mantras: ❌ Disabled
-        • Completion ritual: ❌ Disabled
+        <b>🎯 Research Focus:</b>
+        • Quality threshold: 80%
+        • Relevance minimum: 75%
+        • Source diversity: ✅ Enabled
+        • Trend tracking: ✅ Enabled
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎨 Environment", callback_data="zen_environment")],
-            [InlineKeyboardButton(text="🔔 Distractions", callback_data="zen_distractions")],
-            [InlineKeyboardButton(text="⏰ Session Timing", callback_data="zen_timing")],
-            [InlineKeyboardButton(text="🧘‍♂️ Mindfulness", callback_data="zen_mindfulness")],
-            [InlineKeyboardButton(text="📊 Zen Analytics", callback_data="zen_analytics")],
-            [InlineKeyboardButton(text="🔄 Reset Zen", callback_data="zen_reset")]
-        ])
-        
-        await send_or_edit_message(
-            message, zen_settings_text, keyboard, 
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Cycle Limits", callback_data="zen_cycles"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Notifications", callback_data="zen_notifications"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Task Management", callback_data="zen_management"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Research Focus", callback_data="zen_focus"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📈 Analytics", callback_data="zen_analytics"
+                    )
+                ],
+                [InlineKeyboardButton(text="🔄 Reset Zen", callback_data="zen_reset")],
+            ]
         )
-        
+
+        await send_or_edit_message(
+            message,
+            zen_settings_text,
+            keyboard,
+        )
+
     except Exception as e:
         logger.error(f"Error showing Zen settings: {e}")
         await message.answer("❌ Error showing Zen settings.")
 
 
-@router.callback_query(lambda c: c.data == "zen_environment")
-async def callback_zen_environment(callback: CallbackQuery) -> None:
-    """Configure Zen environment settings.
-    
+@router.callback_query(lambda c: c.data == "zen_cycles")
+async def callback_zen_cycles(callback: CallbackQuery) -> None:
+    """Configure Zen task daily cycle limits.
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
-        environment_text = dedent("""
-        🎨 <b>Zen Environment</b>
+        cycles_text = dedent("""
+        🔄 <b>Daily Cycle Limits</b>
         
-        Customize your focused research atmosphere:
+        Configure how many research cycles your Zen tasks can run per day:
         
-        <b>🎨 Visual Themes:</b>
-        • Calm (current) - Soft blues and grays
-        • Forest - Natural greens and browns
-        • Ocean - Deep blues and aqua
-        • Sunset - Warm oranges and purples
-        • Monochrome - Simple black and white
+        <b>📊 Current Settings:</b>
+        • Default daily cycles: 10
+        • Reset time: 00:00 UTC daily
+        • Cycle tracking: ✅ Enabled
+        • Overflow behavior: Pause until reset
         
-        <b>📱 Interface Style:</b>
-        • Layout: Minimal (current)
-        • Button style: Subtle
-        • Progress bars: Thin
-        • Text density: Spacious
+        <b>🎯 Plan-Based Limits:</b>
+        • Free plan: 5 cycles/day
+        • Pro plan: 20 cycles/day
+        • Premium: 50+ cycles/day
         
-        <b>🔤 Typography:</b>
-        • Font size: Medium
-        • Reading mode: Comfortable
-        • Line spacing: Relaxed
-        • Contrast: High
+        <b>⚙️ Advanced Options:</b>
+        • Custom reset time: 00:00 UTC
+        • Cycle borrowing: ❌ Disabled
+        • Priority allocation: ❌ Disabled
+        • Auto-adjustment: ❌ Disabled
         
-        <b>✨ Visual Effects:</b>
-        • Animations: Gentle
-        • Transitions: Smooth
-        • Focus indicators: Soft glow
-        • Breathing guides: ❌ Disabled
+        <b>📈 Usage Tracking:</b>
+        • Daily usage: 7/10 cycles
+        • Weekly average: 8.2 cycles/day
+        • Monthly trend: ↗️ Increasing
+        • Efficiency: 92%
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="🌊 Calm", callback_data="theme_calm"),
-                InlineKeyboardButton(text="🌲 Forest", callback_data="theme_forest")
-            ],
-            [
-                InlineKeyboardButton(text="🌊 Ocean", callback_data="theme_ocean"),
-                InlineKeyboardButton(text="🌅 Sunset", callback_data="theme_sunset")
-            ],
-            [InlineKeyboardButton(text="⚫ Monochrome", callback_data="theme_mono")],
-            [InlineKeyboardButton(text="🔧 Custom Theme", callback_data="theme_custom")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="zen_settings_back")]
-        ])
-        
-        await send_or_edit_message(
-            callback.message, environment_text, keyboard, edit_mode=True
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="5 cycles", callback_data="zen_cycles_5"),
+                    InlineKeyboardButton(
+                        text="10 cycles", callback_data="zen_cycles_10"
+                    ),
+                    InlineKeyboardButton(
+                        text="20 cycles", callback_data="zen_cycles_20"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="50 cycles", callback_data="zen_cycles_50"
+                    ),
+                    InlineKeyboardButton(
+                        text="Custom", callback_data="zen_cycles_custom"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⏰ Reset Time", callback_data="zen_reset_time"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Usage Stats", callback_data="zen_usage_stats"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="zen_settings_back"
+                    )
+                ],
+            ]
         )
-        
+
+        await send_or_edit_message(
+            callback.message, cycles_text, keyboard, edit_mode=True
+        )
+
         await callback.answer()
-        
+
     except Exception as e:
-        logger.error(f"Error showing Zen environment: {e}")
-        await callback.answer("❌ Error showing environment settings.")
+        logger.error(f"Error showing Zen cycles: {e}")
+        await callback.answer("❌ Error showing cycle settings.")
 
 
-@router.callback_query(lambda c: c.data == "zen_timing")
-async def callback_zen_timing(callback: CallbackQuery) -> None:
-    """Configure Zen session timing.
-    
+@router.callback_query(lambda c: c.data == "zen_notifications")
+async def callback_zen_notifications(callback: CallbackQuery) -> None:
+    """Configure Zen task notifications.
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
-        timing_text = dedent("""
-        ⏰ <b>Zen Session Timing</b>
+        notifications_text = dedent("""
+        🔔 <b>Zen Task Notifications</b>
         
-        Configure session durations and schedules:
+        Control how you receive updates about your continuous research:
         
-        <b>📅 Default Durations:</b>
-        • Quick Focus: 25 minutes
-        • Deep Dive: 45 minutes
-        • Extended Study: 90 minutes
-        • Marathon: 2+ hours
+        <b>📅 Daily Summaries:</b>
+        • Daily research summary: ✅ Enabled
+        • Summary time: 09:00 UTC
+        • Include new findings: ✅ Yes
+        • Include cycle usage: ✅ Yes
         
-        <b>⏱️ Session Behavior:</b>
-        • Auto-start: ❌ Manual start
-        • Auto-extend: ❌ Disabled
-        • Grace period: 5 minutes
-        • Hard stop: ✅ Enabled
+        <b>🎯 Finding Alerts:</b>
+        • High-relevance findings: ✅ Enabled (75%+)
+        • Breakthrough discoveries: ✅ Enabled (90%+)
+        • New trend alerts: ✅ Enabled
+        • Duplicate prevention: ✅ Enabled
         
-        <b>🔔 Reminders:</b>
-        • 10 min remaining: ✅ Enabled
-        • 5 min remaining: ✅ Enabled
-        • 1 min remaining: ✅ Enabled
-        • Session end: ✅ Enabled
+        <b>📊 Status Updates:</b>
+        • Task status changes: ✅ Enabled
+        • Cycle limit reached: ✅ Enabled
+        • Daily reset notifications: ❌ Disabled
+        • Performance insights: ❌ Disabled
         
-        <b>🛑 Break Management:</b>
-        • Suggested breaks: Every 25 min
-        • Break duration: 5 minutes
-        • Long break: Every 2 hours (15 min)
-        • Break enforcement: ❌ Optional
+        <b>⏰ Timing Preferences:</b>
+        • Quiet hours: 22:00-08:00 UTC
+        • Urgent override: ✅ Enabled
+        • Batch notifications: ❌ Disabled
+        • Frequency limit: 3/hour max
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📅 Default Durations", callback_data="timing_durations")],
-            [InlineKeyboardButton(text="⏱️ Session Behavior", callback_data="timing_behavior")],
-            [InlineKeyboardButton(text="🔔 Reminders", callback_data="timing_reminders")],
-            [InlineKeyboardButton(text="🛑 Break Settings", callback_data="timing_breaks")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="zen_settings_back")]
-        ])
-        
-        await send_or_edit_message(
-            callback.message, timing_text, keyboard, edit_mode=True
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📅 Daily Summary", callback_data="zen_daily_summary"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Finding Alerts", callback_data="zen_finding_alerts"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Status Updates", callback_data="zen_status_updates"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⏰ Timing", callback_data="zen_notification_timing"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔕 Quiet Hours", callback_data="zen_quiet_hours"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="zen_settings_back"
+                    )
+                ],
+            ]
         )
-        
+
+        await send_or_edit_message(
+            callback.message, notifications_text, keyboard, edit_mode=True
+        )
+
         await callback.answer()
-        
+
     except Exception as e:
-        logger.error(f"Error showing Zen timing: {e}")
-        await callback.answer("❌ Error showing timing settings.")
+        logger.error(f"Error showing Zen notifications: {e}")
+        await callback.answer("❌ Error showing notification settings.")
 
 
-@router.callback_query(lambda c: c.data == "zen_mindfulness")
-async def callback_zen_mindfulness(callback: CallbackQuery) -> None:
-    """Configure mindfulness integration.
-    
+@router.callback_query(lambda c: c.data == "zen_management")
+async def callback_zen_management(callback: CallbackQuery) -> None:
+    """Configure Zen task management settings.
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
-        mindfulness_text = dedent("""
-        🧘‍♂️ <b>Mindfulness Integration</b>
+        management_text = dedent("""
+        📊 <b>Zen Task Management</b>
         
-        Enhance your Zen experience with mindfulness features:
+        Control how your continuous research tasks behave:
         
-        <b>🌬️ Breathing Exercises:</b>
-        • Session start breathing: ❌ Disabled
-        • Focus reset breathing: ❌ Disabled
-        • Stress relief breathing: ❌ Disabled
-        • Session end breathing: ❌ Disabled
+        <b>🔄 Auto-Management:</b>
+        • Auto-pause on limit: ✅ Enabled
+        • Auto-resume on reset: ✅ Enabled
+        • Background processing: ✅ Enabled
+        • Priority queuing: ❌ Disabled
         
-        <b>🧠 Mental Preparation:</b>
-        • Intention setting: ❌ Disabled
-        • Mind clearing: ❌ Disabled
-        • Focus affirmations: ❌ Disabled
-        • Research mantras: ❌ Disabled
+        <b>🎯 Task Behavior:</b>
+        • Concurrent Zen tasks: 3 max
+        • Task priority: First created
+        • Resource sharing: ✅ Enabled
+        • Conflict resolution: Pause older
         
-        <b>📊 Mindful Progress:</b>
-        • Awareness tracking: ❌ Disabled
-        • Distraction logging: ❌ Disabled
-        • Focus quality rating: ❌ Disabled
-        • Mindfulness scoring: ❌ Disabled
+        <b>📈 Performance:</b>
+        • Cycle efficiency: 92%
+        • Quality optimization: ✅ Enabled
+        • Speed vs quality: Balanced
+        • Resource limits: Plan-based
         
-        <b>🎯 Completion Rituals:</b>
-        • Session reflection: ❌ Disabled
-        • Gratitude practice: ❌ Disabled
-        • Learning notes: ❌ Disabled
-        • Next session planning: ❌ Disabled
-        
-        <i>Note: Mindfulness features are experimental</i>
+        <b>🛡️ Safety Features:</b>
+        • Duplicate prevention: ✅ Enabled
+        • Quality filtering: ✅ Enabled
+        • Rate limiting: ✅ Enabled
+        • Error recovery: ✅ Enabled
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🌬️ Breathing", callback_data="mindfulness_breathing")],
-            [InlineKeyboardButton(text="🧠 Preparation", callback_data="mindfulness_preparation")],
-            [InlineKeyboardButton(text="📊 Progress", callback_data="mindfulness_progress")],
-            [InlineKeyboardButton(text="🎯 Rituals", callback_data="mindfulness_rituals")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="zen_settings_back")]
-        ])
-        
-        await send_or_edit_message(
-            callback.message, mindfulness_text, keyboard, edit_mode=True
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Auto-Management", callback_data="zen_auto_management"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Task Behavior", callback_data="zen_task_behavior"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📈 Performance", callback_data="zen_performance"
+                    )
+                ],
+                [InlineKeyboardButton(text="🛡️ Safety", callback_data="zen_safety")],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Resource Usage", callback_data="zen_resources"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="zen_settings_back"
+                    )
+                ],
+            ]
         )
-        
+
+        await send_or_edit_message(
+            callback.message, management_text, keyboard, edit_mode=True
+        )
+
         await callback.answer()
-        
+
     except Exception as e:
-        logger.error(f"Error showing mindfulness settings: {e}")
-        await callback.answer("❌ Error showing mindfulness settings.")
+        logger.error(f"Error showing Zen management: {e}")
+        await callback.answer("❌ Error showing management settings.")
+
+
+@router.callback_query(lambda c: c.data == "zen_focus")
+async def callback_zen_focus(callback: CallbackQuery) -> None:
+    """Configure Zen task research focus settings.
+
+    :param callback: Callback query
+    """
+    if not callback.message:
+        await callback.answer("❌ Error: message not accessible.")
+        return
+
+    try:
+        focus_text = dedent("""
+        🎯 <b>Research Focus Settings</b>
+        
+        Fine-tune how your Zen tasks conduct research:
+        
+        <b>📊 Quality Thresholds:</b>
+        • Minimum relevance: 75%
+        • Quality threshold: 80%
+        • Source credibility: High
+        • Peer review preference: ✅ Enabled
+        
+        <b>🔍 Search Strategy:</b>
+        • Source diversity: ✅ Enabled
+        • Cross-database search: ✅ Enabled
+        • Citation tracking: ✅ Enabled
+        • Related paper discovery: ✅ Enabled
+        
+        <b>📈 Trend Analysis:</b>
+        • Trend tracking: ✅ Enabled
+        • Emerging topics: ✅ Enabled
+        • Citation analysis: ✅ Enabled
+        • Impact assessment: ✅ Enabled
+        
+        <b>🎨 Result Filtering:</b>
+        • Duplicate detection: ✅ Enabled
+        • Similarity grouping: ✅ Enabled
+        • Relevance ranking: ✅ Enabled
+        • Quality scoring: ✅ Enabled
+        """)
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📊 Quality Settings", callback_data="zen_quality"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔍 Search Strategy", callback_data="zen_search_strategy"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📈 Trend Analysis", callback_data="zen_trends"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎨 Result Filtering", callback_data="zen_filtering"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📚 Source Preferences", callback_data="zen_sources"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="zen_settings_back"
+                    )
+                ],
+            ]
+        )
+
+        await send_or_edit_message(
+            callback.message, focus_text, keyboard, edit_mode=True
+        )
+
+        await callback.answer()
+
+    except Exception as e:
+        logger.error(f"Error showing Zen focus: {e}")
+        await callback.answer("❌ Error showing focus settings.")
 
 
 @router.callback_query(lambda c: c.data == "zen_analytics")
 async def callback_zen_analytics(callback: CallbackQuery) -> None:
-    """Show Zen mode analytics settings.
-    
+    """Show Zen task analytics settings.
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         analytics_text = dedent("""
         📊 <b>Zen Analytics</b>
         
-        Configure tracking and insights for your Zen practice:
+        Configure tracking and insights for your continuous research:
         
-        <b>📈 Tracking Options:</b>
-        • Session duration: ✅ Enabled
-        • Focus quality: ✅ Enabled
-        • Distraction count: ✅ Enabled
-        • Research efficiency: ✅ Enabled
+        <b>📈 Performance Metrics:</b>
+        • Cycle efficiency: ✅ Tracked
+        • Quality trends: ✅ Tracked
+        • Research productivity: ✅ Tracked
+        • Topic evolution: ✅ Tracked
         
-        <b>🎯 Focus Metrics:</b>
-        • Concentration tracking: ✅ Enabled
-        • Flow state detection: ❌ Disabled
-        • Mental fatigue analysis: ❌ Disabled
-        • Optimal timing analysis: ✅ Enabled
+        <b>📊 Usage Statistics:</b>
+        • Daily cycle usage: ✅ Tracked
+        • Task completion rates: ✅ Tracked
+        • Finding quality scores: ✅ Tracked
+        • Research patterns: ✅ Tracked
         
-        <b>📅 Historical Data:</b>
-        • Session history: ✅ Keep all
-        • Progress trends: ✅ Enabled
-        • Personal insights: ✅ Enabled
-        • Comparison reports: ❌ Disabled
+        <b>🎯 Insights & Reports:</b>
+        • Weekly summaries: ✅ Enabled
+        • Monthly reports: ✅ Enabled
+        • Performance insights: ✅ Enabled
+        • Improvement suggestions: ✅ Enabled
         
-        <b>🔒 Privacy:</b>
+        <b>🔒 Privacy & Data:</b>
+        • Data retention: 90 days
         • Anonymous analytics: ✅ Enabled
-        • Data sharing: ❌ Disabled
-        • Export capability: ✅ Enabled
-        • Auto-deletion: After 1 year
+        • Personal insights: ✅ Enabled
+        • Export capabilities: ✅ Enabled
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📈 Tracking", callback_data="analytics_tracking")],
-            [InlineKeyboardButton(text="🎯 Focus Metrics", callback_data="analytics_focus")],
-            [InlineKeyboardButton(text="📅 History", callback_data="analytics_history")],
-            [InlineKeyboardButton(text="🔒 Privacy", callback_data="analytics_privacy")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="zen_settings_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📈 Performance", callback_data="zen_performance_metrics"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Usage Stats", callback_data="zen_usage_analytics"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Insights", callback_data="zen_insights"
+                    )
+                ],
+                [InlineKeyboardButton(text="📋 Reports", callback_data="zen_reports")],
+                [
+                    InlineKeyboardButton(
+                        text="🔒 Privacy", callback_data="zen_analytics_privacy"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="zen_settings_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, analytics_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing Zen analytics: {e}")
         await callback.answer("❌ Error showing analytics settings.")
@@ -335,68 +539,90 @@ async def callback_zen_analytics(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "zen_settings_back")
 async def callback_zen_settings_back(callback: CallbackQuery) -> None:
     """Return to main Zen settings.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         zen_settings_text = dedent("""
-        🧘‍♂️ <b>Zen Mode Settings</b>
+        🧘‍♂️ <b>Zen Tasks Settings</b>
         
-        Configure your focused research experience:
+        Configure your continuous research tasks:
         
-        <b>🎨 Environment:</b>
-        • Theme: Calm (default)
-        • Interface: Minimal
-        • Progress style: Subtle
-        • Color scheme: Peaceful
+        <b>🔄 Daily Cycle Limits:</b>
+        • Default daily cycles: 10
+        • Auto-reset time: 00:00 UTC
+        • Cycle tracking: ✅ Enabled
+        • Overflow handling: Pause until reset
         
-        <b>🔔 Distraction Control:</b>
-        • Regular notifications: 🔕 Suppressed
-        • Emergency only: ✅ Enabled
-        • Session reminders: ✅ Enabled
-        • Break notifications: ✅ Enabled
+        <b>🔔 Notification Preferences:</b>
+        • Daily summaries: ✅ Enabled
+        • New findings alerts: ✅ Enabled (75%+ relevance)
+        • Cycle usage updates: ❌ Disabled
+        • Task status changes: ✅ Enabled
         
-        <b>⏰ Session Defaults:</b>
-        • Default duration: 25 minutes
-        • Auto-extend: ❌ Disabled
-        • Break intervals: Every 25 min
-        • End reminder: 5 min before
+        <b>📊 Task Management:</b>
+        • Auto-pause on limit: ✅ Enabled
+        • Resume on reset: ✅ Enabled
+        • Priority queuing: ❌ Disabled
+        • Background processing: ✅ Enabled
         
-        <b>🧘‍♂️ Mindfulness:</b>
-        • Start meditation: ❌ Disabled
-        • Focus breathing: ❌ Disabled
-        • Progress mantras: ❌ Disabled
-        • Completion ritual: ❌ Disabled
+        <b>🎯 Research Focus:</b>
+        • Quality threshold: 80%
+        • Relevance minimum: 75%
+        • Source diversity: ✅ Enabled
+        • Trend tracking: ✅ Enabled
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎨 Environment", callback_data="zen_environment")],
-            [InlineKeyboardButton(text="🔔 Distractions", callback_data="zen_distractions")],
-            [InlineKeyboardButton(text="⏰ Session Timing", callback_data="zen_timing")],
-            [InlineKeyboardButton(text="🧘‍♂️ Mindfulness", callback_data="zen_mindfulness")],
-            [InlineKeyboardButton(text="📊 Zen Analytics", callback_data="zen_analytics")],
-            [InlineKeyboardButton(text="🔄 Reset Zen", callback_data="zen_reset")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Cycle Limits", callback_data="zen_cycles"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Notifications", callback_data="zen_notifications"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Task Management", callback_data="zen_management"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Research Focus", callback_data="zen_focus"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📈 Analytics", callback_data="zen_analytics"
+                    )
+                ],
+                [InlineKeyboardButton(text="🔄 Reset Zen", callback_data="zen_reset")],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, zen_settings_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error returning to Zen settings: {e}")
         await callback.answer("❌ Error returning to Zen settings.")
 
 
 # TODO: Implement detailed Zen settings handlers:
-# - zen_distractions - Distraction control configuration
-# - theme_* - Theme selection and customization
-# - timing_* - Detailed timing configuration
-# - mindfulness_* - Mindfulness feature settings
-# - analytics_* - Analytics and tracking options
+# - zen_cycles_* - Daily cycle limit configuration
+# - zen_notification_* - Notification preference management
+# - zen_management_* - Task management configuration
+# - zen_focus_* - Research focus and quality settings
+# - zen_analytics_* - Analytics and reporting configuration
 # - zen_reset - Reset all Zen settings to defaults

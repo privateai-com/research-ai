@@ -1,7 +1,7 @@
 """User management operations."""
 
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from sqlalchemy import select, func, and_
 
@@ -67,6 +67,20 @@ async def get_or_create_user(
         return user
     except Exception as e:
         raise RuntimeError(f"Failed to get or create user {telegram_id}: {e}") from e
+
+
+async def get_all_users() -> List[User]:
+    """Get all users from the database.
+
+    :returns: List of all User instances
+    """
+    try:
+        async with SessionLocal() as session:
+            result = await session.execute(select(User))
+            users = result.scalars().all()
+            return list(users)
+    except Exception as e:
+        raise RuntimeError(f"Failed to get all users: {e}") from e
 
 
 async def upgrade_user_plan(

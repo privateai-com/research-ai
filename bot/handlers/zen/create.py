@@ -14,7 +14,6 @@ from textwrap import dedent
 from shared.logging import get_logger
 from bot.handlers.utils.messages import send_or_edit_message
 from bot.handlers.utils.validation import validate_user_access
-from bot.handlers.utils.task_operations import TaskCreationStates, process_task_description
 
 router = Router(name="zen_create")
 logger = get_logger(__name__)
@@ -46,7 +45,7 @@ async def command_zen_start(message: Message, state: FSMContext) -> None:
     # Validate user access
     is_valid, error_msg = await validate_user_access(message)
     if not is_valid:
-        await send_or_edit_message(message, error_msg
+        await send_or_edit_message(message, error_msg)
         return
 
     try:
@@ -72,15 +71,31 @@ async def command_zen_start(message: Message, state: FSMContext) -> None:
         Ready to create your Zen task?
         """)
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🧘‍♂️ Create Zen Task", callback_data="zen_create_start")],
-            [InlineKeyboardButton(text="📊 View Zen Tasks", callback_data="zen_view_tasks")],
-            [InlineKeyboardButton(text="⚙️ Zen Settings", callback_data="zen_settings")],
-            [InlineKeyboardButton(text="❌ Cancel", callback_data="zen_cancel")]
-        ])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🧘‍♂️ Create Zen Task", callback_data="zen_create_start"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 View Zen Tasks", callback_data="zen_view_tasks"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚙️ Zen Settings", callback_data="zen_settings"
+                    )
+                ],
+                [InlineKeyboardButton(text="❌ Cancel", callback_data="zen_cancel")],
+            ]
+        )
 
         await send_or_edit_message(
-            message, zen_intro_text, keyboard, 
+            message,
+            zen_intro_text,
+            keyboard,
         )
 
     except Exception as e:
@@ -115,7 +130,8 @@ async def callback_zen_create_start(callback, state: FSMContext) -> None:
         """)
 
         await send_or_edit_message(
-            callback.message, topic_prompt_text, 
+            callback.message,
+            topic_prompt_text,
         )
 
         await state.set_state(ZenCreationStates.waiting_for_topic)
@@ -161,21 +177,37 @@ async def process_zen_topic(message: Message, state: FSMContext) -> None:
         (Cycles reset daily, choose based on your plan limits)
         """)
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="🔄 5 cycles/day", callback_data="zen_cycles_5"),
-                InlineKeyboardButton(text="🔄 10 cycles/day", callback_data="zen_cycles_10")
-            ],
-            [
-                InlineKeyboardButton(text="🔄 20 cycles/day", callback_data="zen_cycles_20"),
-                InlineKeyboardButton(text="🔄 50 cycles/day", callback_data="zen_cycles_50")
-            ],
-            [InlineKeyboardButton(text="🔧 Custom", callback_data="zen_cycles_custom")],
-            [InlineKeyboardButton(text="❌ Cancel", callback_data="zen_cancel")]
-        ])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔄 5 cycles/day", callback_data="zen_cycles_5"
+                    ),
+                    InlineKeyboardButton(
+                        text="🔄 10 cycles/day", callback_data="zen_cycles_10"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 20 cycles/day", callback_data="zen_cycles_20"
+                    ),
+                    InlineKeyboardButton(
+                        text="🔄 50 cycles/day", callback_data="zen_cycles_50"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔧 Custom", callback_data="zen_cycles_custom"
+                    )
+                ],
+                [InlineKeyboardButton(text="❌ Cancel", callback_data="zen_cancel")],
+            ]
+        )
 
         await send_or_edit_message(
-            message, cycles_prompt_text, keyboard, 
+            message,
+            cycles_prompt_text,
+            keyboard,
         )
 
         await state.set_state(ZenCreationStates.waiting_for_daily_cycles)
@@ -207,18 +239,14 @@ async def callback_zen_cycles(callback, state: FSMContext) -> None:
             """)
 
             await send_or_edit_message(
-                callback.message, custom_prompt_text, 
+                callback.message,
+                custom_prompt_text,
             )
             await callback.answer()
             return
 
         # Parse cycles
-        cycles_map = {
-            "5": 5,
-            "10": 10,
-            "20": 20,
-            "50": 50
-        }
+        cycles_map = {"5": 5, "10": 10, "20": 20, "50": 50}
 
         daily_cycles = cycles_map.get(cycles_str)
         if not daily_cycles:
@@ -282,25 +310,44 @@ async def _create_zen_task(message: Message, state: FSMContext) -> None:
         in this area and deliver findings daily.
         """)
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📊 View Zen Tasks", callback_data="zen_view_tasks")],
-            [InlineKeyboardButton(text="⚙️ Zen Settings", callback_data="zen_settings")],
-            [InlineKeyboardButton(text="🔄 Create Another", callback_data="zen_create_start")]
-        ])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📊 View Zen Tasks", callback_data="zen_view_tasks"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚙️ Zen Settings", callback_data="zen_settings"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Create Another", callback_data="zen_create_start"
+                    )
+                ],
+            ]
+        )
 
         await send_or_edit_message(
-            message, task_created_text, keyboard, 
+            message,
+            task_created_text,
+            keyboard,
         )
 
         # Clear state
         await state.clear()
 
-        logger.info(f"Zen task created for user {message.from_user.id}: {topic} ({daily_cycles} daily cycles)")
+        logger.info(
+            f"Zen task created for user {message.from_user.id}: {topic} ({daily_cycles} daily cycles)"
+        )
 
     except Exception as e:
         logger.error(f"Error creating Zen task: {e}")
         await send_or_edit_message(
-            message, "❌ Error creating Zen task.", 
+            message,
+            "❌ Error creating Zen task.",
         )
 
 
@@ -316,7 +363,8 @@ async def callback_zen_cancel(callback, state: FSMContext) -> None:
 
         cancel_text = "❌ Zen task creation cancelled."
         await send_or_edit_message(
-            callback.message, cancel_text, 
+            callback.message,
+            cancel_text,
         )
 
         await callback.answer("Zen task creation cancelled.")
@@ -355,11 +403,25 @@ async def callback_zen_view_tasks(callback) -> None:
         Create your first Zen task to get started!
         """)
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🧘‍♂️ Create Zen Task", callback_data="zen_create_start")],
-            [InlineKeyboardButton(text="📊 View All Tasks", callback_data="show_results_list")],
-            [InlineKeyboardButton(text="◀️ Back to Main", callback_data="zen_back_to_main")]
-        ])
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🧘‍♂️ Create Zen Task", callback_data="zen_create_start"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 View All Tasks", callback_data="show_results_list"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Main", callback_data="zen_back_to_main"
+                    )
+                ],
+            ]
+        )
 
         await send_or_edit_message(
             callback.message, tasks_text, keyboard, edit_mode=True

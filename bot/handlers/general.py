@@ -50,9 +50,7 @@ async def command_start_handler(message: Message) -> None:
     Ready to start your research journey? 👇
     """)
 
-    await send_or_edit_message(
-        message, welcome_text, get_main_menu_keyboard()
-    )
+    await send_or_edit_message(message, welcome_text, get_main_menu_keyboard())
 
 
 @router.message(Command("help"))

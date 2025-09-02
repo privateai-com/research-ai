@@ -7,7 +7,12 @@ bulk operations, scheduling, and collaborative task management.
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from aiogram.fsm.context import FSMContext
 from textwrap import dedent
 
@@ -21,7 +26,7 @@ logger = get_logger(__name__)
 
 class AdvancedTaskCreationStates:
     """States for advanced task creation flow."""
-    
+
     waiting_for_template_choice = "advanced_waiting_for_template"
     waiting_for_bulk_input = "advanced_waiting_for_bulk"
     waiting_for_schedule_setup = "advanced_waiting_for_schedule"
@@ -37,20 +42,20 @@ class AdvancedTaskCreationStates:
 @router.message(Command("tasks_create_advanced"))
 async def command_advanced_task_creation(message: Message, state: FSMContext) -> None:
     """Start advanced task creation flow.
-    
+
     :param message: Telegram message
     :param state: FSM context
     """
     if not message.from_user:
         await message.answer("❌ Error: could not determine user.")
         return
-    
+
     # Validate user access
     is_valid, error_msg = await validate_user_access(message)
     if not is_valid:
-        await send_or_edit_message(message, error_msg
+        await send_or_edit_message(message, error_msg)
         return
-    
+
     try:
         advanced_creation_text = dedent("""
         🔬 <b>Advanced Task Creation</b>
@@ -72,36 +77,68 @@ async def command_advanced_task_creation(message: Message, state: FSMContext) ->
         <b>🎯 Custom Wizard:</b>
         Step-by-step guided task creation
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📋 Use Template", callback_data="advanced_create_template")],
-            [InlineKeyboardButton(text="📚 Bulk Creation", callback_data="advanced_create_bulk")],
-            [InlineKeyboardButton(text="⏰ Schedule Task", callback_data="advanced_create_schedule")],
-            [InlineKeyboardButton(text="👥 Collaborative", callback_data="advanced_create_collaborative")],
-            [InlineKeyboardButton(text="🎯 Custom Wizard", callback_data="advanced_create_wizard")],
-            [InlineKeyboardButton(text="❌ Cancel", callback_data="advanced_create_cancel")]
-        ])
-        
-        await send_or_edit_message(
-            message, advanced_creation_text, keyboard, 
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📋 Use Template", callback_data="advanced_create_template"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📚 Bulk Creation", callback_data="advanced_create_bulk"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⏰ Schedule Task",
+                        callback_data="advanced_create_schedule",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="👥 Collaborative",
+                        callback_data="advanced_create_collaborative",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Custom Wizard", callback_data="advanced_create_wizard"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ Cancel", callback_data="advanced_create_cancel"
+                    )
+                ],
+            ]
         )
-        
+
+        await send_or_edit_message(
+            message,
+            advanced_creation_text,
+            keyboard,
+        )
+
     except Exception as e:
         logger.error(f"Error starting advanced task creation: {e}")
         await message.answer("❌ Error starting advanced task creation.")
 
 
 @router.callback_query(lambda c: c.data == "advanced_create_template")
-async def callback_template_creation(callback: CallbackQuery, state: FSMContext) -> None:
+async def callback_template_creation(
+    callback: CallbackQuery, state: FSMContext
+) -> None:
     """Handle template-based task creation.
-    
+
     :param callback: Callback query
     :param state: FSM context
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         template_text = dedent("""
         📋 <b>Task Templates</b>
@@ -132,34 +169,61 @@ async def callback_template_creation(callback: CallbackQuery, state: FSMContext)
         • AI/ML Applications
         • Biomedical Devices
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="📖 Literature Review", callback_data="template_literature_review"),
-                InlineKeyboardButton(text="🧪 Clinical Trials", callback_data="template_clinical_trials")
-            ],
-            [
-                InlineKeyboardButton(text="⚖️ Tech Comparison", callback_data="template_tech_comparison"),
-                InlineKeyboardButton(text="📈 Trend Analysis", callback_data="template_trend_analysis")
-            ],
-            [
-                InlineKeyboardButton(text="🎓 Thesis Research", callback_data="template_thesis"),
-                InlineKeyboardButton(text="📋 Systematic Review", callback_data="template_systematic")
-            ],
-            [
-                InlineKeyboardButton(text="🏭 Market Research", callback_data="template_market"),
-                InlineKeyboardButton(text="💊 Drug Discovery", callback_data="template_drug_discovery")
-            ],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="advanced_create_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📖 Literature Review",
+                        callback_data="template_literature_review",
+                    ),
+                    InlineKeyboardButton(
+                        text="🧪 Clinical Trials",
+                        callback_data="template_clinical_trials",
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚖️ Tech Comparison",
+                        callback_data="template_tech_comparison",
+                    ),
+                    InlineKeyboardButton(
+                        text="📈 Trend Analysis",
+                        callback_data="template_trend_analysis",
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎓 Thesis Research", callback_data="template_thesis"
+                    ),
+                    InlineKeyboardButton(
+                        text="📋 Systematic Review", callback_data="template_systematic"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🏭 Market Research", callback_data="template_market"
+                    ),
+                    InlineKeyboardButton(
+                        text="💊 Drug Discovery",
+                        callback_data="template_drug_discovery",
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="advanced_create_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, template_text, keyboard, edit_mode=True
         )
-        
+
         await state.set_state(AdvancedTaskCreationStates.waiting_for_template_choice)
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing templates: {e}")
         await callback.answer("❌ Error showing templates.")
@@ -168,14 +232,14 @@ async def callback_template_creation(callback: CallbackQuery, state: FSMContext)
 @router.callback_query(lambda c: c.data == "advanced_create_bulk")
 async def callback_bulk_creation(callback: CallbackQuery, state: FSMContext) -> None:
     """Handle bulk task creation.
-    
+
     :param callback: Callback query
     :param state: FSM context
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         bulk_text = dedent("""
         📚 <b>Bulk Task Creation</b>
@@ -216,37 +280,58 @@ async def callback_bulk_creation(callback: CallbackQuery, state: FSMContext) -> 
         
         Ready to create multiple tasks?
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📝 Text Input", callback_data="bulk_text_input")],
-            [InlineKeyboardButton(text="📄 CSV Upload", callback_data="bulk_csv_upload")],
-            [InlineKeyboardButton(text="🔧 Template Expansion", callback_data="bulk_template_expansion")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="advanced_create_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📝 Text Input", callback_data="bulk_text_input"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📄 CSV Upload", callback_data="bulk_csv_upload"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔧 Template Expansion",
+                        callback_data="bulk_template_expansion",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="advanced_create_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, bulk_text, keyboard, edit_mode=True
         )
-        
+
         await state.set_state(AdvancedTaskCreationStates.waiting_for_bulk_input)
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing bulk creation: {e}")
         await callback.answer("❌ Error showing bulk creation.")
 
 
 @router.callback_query(lambda c: c.data == "advanced_create_schedule")
-async def callback_schedule_creation(callback: CallbackQuery, state: FSMContext) -> None:
+async def callback_schedule_creation(
+    callback: CallbackQuery, state: FSMContext
+) -> None:
     """Handle scheduled task creation.
-    
+
     :param callback: Callback query
     :param state: FSM context
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         schedule_text = dedent("""
         ⏰ <b>Scheduled Task Creation</b>
@@ -286,38 +371,62 @@ async def callback_schedule_creation(callback: CallbackQuery, state: FSMContext)
         • Trend analysis
         • Predictive scheduling
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⏰ One-time Delayed", callback_data="schedule_onetime")],
-            [InlineKeyboardButton(text="📅 Daily Recurring", callback_data="schedule_daily")],
-            [InlineKeyboardButton(text="📆 Weekly Updates", callback_data="schedule_weekly")],
-            [InlineKeyboardButton(text="🗓️ Monthly Reviews", callback_data="schedule_monthly")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="advanced_create_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="⏰ One-time Delayed", callback_data="schedule_onetime"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📅 Daily Recurring", callback_data="schedule_daily"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📆 Weekly Updates", callback_data="schedule_weekly"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🗓️ Monthly Reviews", callback_data="schedule_monthly"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="advanced_create_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, schedule_text, keyboard, edit_mode=True
         )
-        
+
         await state.set_state(AdvancedTaskCreationStates.waiting_for_schedule_setup)
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing schedule creation: {e}")
         await callback.answer("❌ Error showing schedule creation.")
 
 
 @router.callback_query(lambda c: c.data == "advanced_create_collaborative")
-async def callback_collaborative_creation(callback: CallbackQuery, state: FSMContext) -> None:
+async def callback_collaborative_creation(
+    callback: CallbackQuery, state: FSMContext
+) -> None:
     """Handle collaborative task creation.
-    
+
     :param callback: Callback query
     :param state: FSM context
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         collaborative_text = dedent("""
         👥 <b>Collaborative Task Creation</b>
@@ -359,43 +468,67 @@ async def callback_collaborative_creation(callback: CallbackQuery, state: FSMCon
         • Cross-institutional collaboration
         • Student-supervisor workflows
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="👥 Create Team Workspace", callback_data="collab_create_workspace")],
-            [InlineKeyboardButton(text="🔗 Join Existing Team", callback_data="collab_join_team")],
-            [InlineKeyboardButton(text="📋 Share Current Task", callback_data="collab_share_task")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="advanced_create_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="👥 Create Team Workspace",
+                        callback_data="collab_create_workspace",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔗 Join Existing Team", callback_data="collab_join_team"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📋 Share Current Task", callback_data="collab_share_task"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back", callback_data="advanced_create_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, collaborative_text, keyboard, edit_mode=True
         )
-        
-        await state.set_state(AdvancedTaskCreationStates.waiting_for_collaboration_setup)
+
+        await state.set_state(
+            AdvancedTaskCreationStates.waiting_for_collaboration_setup
+        )
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing collaborative creation: {e}")
         await callback.answer("❌ Error showing collaborative creation.")
 
 
 @router.callback_query(lambda c: c.data == "advanced_create_cancel")
-async def callback_advanced_create_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+async def callback_advanced_create_cancel(
+    callback: CallbackQuery, state: FSMContext
+) -> None:
     """Cancel advanced task creation.
-    
+
     :param callback: Callback query
     :param state: FSM context
     """
     try:
         await state.clear()
-        
+
         cancel_text = "❌ Advanced task creation cancelled."
         await send_or_edit_message(
-            callback.message, cancel_text, 
+            callback.message,
+            cancel_text,
         )
-        
+
         await callback.answer("Task creation cancelled.")
-        
+
     except Exception as e:
         logger.error(f"Error cancelling advanced creation: {e}")
         await callback.answer("❌ Error cancelling creation.")

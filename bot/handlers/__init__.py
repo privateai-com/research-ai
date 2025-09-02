@@ -114,7 +114,7 @@ tasks_router = property(lambda self: get_tasks_router())
 
 __all__ = [
     "general_router",
-    "settings_router", 
+    "settings_router",
     "notifications_router",
     "tasks_router",
     "get_general_router",
@@ -122,11 +122,11 @@ __all__ = [
     "get_notifications_router",
     "get_tasks_router",
     "get_help_router",
-    # Admin routers (TODO: enable when admin system is ready)
-    # "get_admin_analytics_router",
-    # "get_admin_metrics_router", 
-    # "get_admin_settings_router",
-    # "get_admin_users_router",
+    # Admin routers
+    "get_admin_analytics_router",
+    "get_admin_metrics_router",
+    "get_admin_settings_router",
+    "get_admin_users_router",
     # Zen routers (TODO: enable when zen mode is ready)
     # "get_zen_create_router",
     # "get_zen_manage_router",

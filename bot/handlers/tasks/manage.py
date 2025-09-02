@@ -7,7 +7,12 @@ prioritization, organization, archiving, and workflow optimization.
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from textwrap import dedent
 
 from shared.logging import get_logger
@@ -26,23 +31,23 @@ logger = get_logger(__name__)
 @router.message(Command("tasks_manage"))
 async def command_task_management(message: Message) -> None:
     """Show task management dashboard.
-    
+
     :param message: Telegram message
     """
     if not message.from_user:
         await message.answer("❌ Error: could not determine user.")
         return
-    
+
     # Validate user access
     is_valid, error_msg = await validate_user_access(message)
     if not is_valid:
-        await send_or_edit_message(message, error_msg
+        await send_or_edit_message(message, error_msg)
         return
-    
+
     try:
         # TODO: Get user's task statistics
         # task_stats = await get_user_task_statistics(message.from_user.id)
-        
+
         management_text = dedent("""
         📋 <b>Task Management Dashboard</b>
         
@@ -64,20 +69,48 @@ async def command_task_management(message: Message) -> None:
         
         Choose a management action:
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎯 Set Priorities", callback_data="manage_priorities")],
-            [InlineKeyboardButton(text="📁 Organize Tasks", callback_data="manage_organize")],
-            [InlineKeyboardButton(text="🗄️ Archive Completed", callback_data="manage_archive")],
-            [InlineKeyboardButton(text="🔄 Workflow Settings", callback_data="manage_workflow")],
-            [InlineKeyboardButton(text="🧹 Cleanup Tasks", callback_data="manage_cleanup")],
-            [InlineKeyboardButton(text="📊 Analytics", callback_data="manage_analytics")]
-        ])
-        
-        await send_or_edit_message(
-            message, management_text, keyboard, 
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Set Priorities", callback_data="manage_priorities"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📁 Organize Tasks", callback_data="manage_organize"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🗄️ Archive Completed", callback_data="manage_archive"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Workflow Settings", callback_data="manage_workflow"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🧹 Cleanup Tasks", callback_data="manage_cleanup"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Analytics", callback_data="manage_analytics"
+                    )
+                ],
+            ]
         )
-        
+
+        await send_or_edit_message(
+            message,
+            management_text,
+            keyboard,
+        )
+
     except Exception as e:
         logger.error(f"Error showing task management: {e}")
         await message.answer("❌ Error showing task management.")
@@ -86,13 +119,13 @@ async def command_task_management(message: Message) -> None:
 @router.callback_query(lambda c: c.data == "manage_priorities")
 async def callback_manage_priorities(callback: CallbackQuery) -> None:
     """Handle task prioritization.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         priorities_text = dedent("""
         🎯 <b>Task Prioritization</b>
@@ -132,20 +165,39 @@ async def callback_manage_priorities(callback: CallbackQuery) -> None:
         • Quality-based promotion
         • User behavior learning
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📝 Set Task Priority", callback_data="priority_set_task")],
-            [InlineKeyboardButton(text="🤖 Auto-Priority Rules", callback_data="priority_auto_rules")],
-            [InlineKeyboardButton(text="📊 Priority Analytics", callback_data="priority_analytics")],
-            [InlineKeyboardButton(text="◀️ Back to Management", callback_data="manage_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📝 Set Task Priority", callback_data="priority_set_task"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🤖 Auto-Priority Rules",
+                        callback_data="priority_auto_rules",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Priority Analytics", callback_data="priority_analytics"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Management", callback_data="manage_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, priorities_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing priorities: {e}")
         await callback.answer("❌ Error showing priorities.")
@@ -154,13 +206,13 @@ async def callback_manage_priorities(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "manage_organize")
 async def callback_manage_organize(callback: CallbackQuery) -> None:
     """Handle task organization.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         organize_text = dedent("""
         📁 <b>Task Organization</b>
@@ -200,21 +252,43 @@ async def callback_manage_organize(callback: CallbackQuery) -> None:
         • Search and filtering
         • Bulk operations
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏷️ Manage Tags", callback_data="organize_tags")],
-            [InlineKeyboardButton(text="📂 Create Categories", callback_data="organize_categories")],
-            [InlineKeyboardButton(text="🔍 Filter Tasks", callback_data="organize_filter")],
-            [InlineKeyboardButton(text="📦 Bulk Operations", callback_data="organize_bulk")],
-            [InlineKeyboardButton(text="◀️ Back to Management", callback_data="manage_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🏷️ Manage Tags", callback_data="organize_tags"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📂 Create Categories", callback_data="organize_categories"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔍 Filter Tasks", callback_data="organize_filter"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📦 Bulk Operations", callback_data="organize_bulk"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Management", callback_data="manage_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, organize_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing organization: {e}")
         await callback.answer("❌ Error showing organization.")
@@ -223,13 +297,13 @@ async def callback_manage_organize(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "manage_archive")
 async def callback_manage_archive(callback: CallbackQuery) -> None:
     """Handle task archiving.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         archive_text = dedent("""
         🗄️ <b>Task Archiving</b>
@@ -273,21 +347,43 @@ async def callback_manage_archive(callback: CallbackQuery) -> None:
         • Better organization
         • Preserved history
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📦 Archive Selected", callback_data="archive_selected")],
-            [InlineKeyboardButton(text="🤖 Auto-Archive Rules", callback_data="archive_auto_rules")],
-            [InlineKeyboardButton(text="📁 View Archived", callback_data="archive_view")],
-            [InlineKeyboardButton(text="♻️ Restore Tasks", callback_data="archive_restore")],
-            [InlineKeyboardButton(text="◀️ Back to Management", callback_data="manage_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📦 Archive Selected", callback_data="archive_selected"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🤖 Auto-Archive Rules", callback_data="archive_auto_rules"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📁 View Archived", callback_data="archive_view"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="♻️ Restore Tasks", callback_data="archive_restore"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Management", callback_data="manage_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, archive_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing archive: {e}")
         await callback.answer("❌ Error showing archive.")
@@ -296,13 +392,13 @@ async def callback_manage_archive(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "manage_workflow")
 async def callback_manage_workflow(callback: CallbackQuery) -> None:
     """Handle workflow settings.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         workflow_text = dedent("""
         🔄 <b>Workflow Settings</b>
@@ -345,21 +441,44 @@ async def callback_manage_workflow(callback: CallbackQuery) -> None:
         • User satisfaction: 4.7/5
         • Efficiency trend: ↗️ +12% this month
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⚙️ Modify Workflow", callback_data="workflow_modify")],
-            [InlineKeyboardButton(text="🤖 Automation Rules", callback_data="workflow_automation")],
-            [InlineKeyboardButton(text="📊 Performance Analysis", callback_data="workflow_performance")],
-            [InlineKeyboardButton(text="🔄 Reset to Defaults", callback_data="workflow_reset")],
-            [InlineKeyboardButton(text="◀️ Back to Management", callback_data="manage_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="⚙️ Modify Workflow", callback_data="workflow_modify"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🤖 Automation Rules", callback_data="workflow_automation"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Performance Analysis",
+                        callback_data="workflow_performance",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Reset to Defaults", callback_data="workflow_reset"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Management", callback_data="manage_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, workflow_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing workflow: {e}")
         await callback.answer("❌ Error showing workflow.")
@@ -368,13 +487,13 @@ async def callback_manage_workflow(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "manage_back")
 async def callback_manage_back(callback: CallbackQuery) -> None:
     """Return to task management dashboard.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         management_text = dedent("""
         📋 <b>Task Management Dashboard</b>
@@ -397,22 +516,48 @@ async def callback_manage_back(callback: CallbackQuery) -> None:
         
         Choose a management action:
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎯 Set Priorities", callback_data="manage_priorities")],
-            [InlineKeyboardButton(text="📁 Organize Tasks", callback_data="manage_organize")],
-            [InlineKeyboardButton(text="🗄️ Archive Completed", callback_data="manage_archive")],
-            [InlineKeyboardButton(text="🔄 Workflow Settings", callback_data="manage_workflow")],
-            [InlineKeyboardButton(text="🧹 Cleanup Tasks", callback_data="manage_cleanup")],
-            [InlineKeyboardButton(text="📊 Analytics", callback_data="manage_analytics")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Set Priorities", callback_data="manage_priorities"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📁 Organize Tasks", callback_data="manage_organize"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🗄️ Archive Completed", callback_data="manage_archive"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Workflow Settings", callback_data="manage_workflow"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🧹 Cleanup Tasks", callback_data="manage_cleanup"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Analytics", callback_data="manage_analytics"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, management_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error returning to management: {e}")
         await callback.answer("❌ Error returning to management.")

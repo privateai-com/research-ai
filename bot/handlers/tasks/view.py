@@ -7,7 +7,12 @@ sorting, analytics, and custom visualizations for task management.
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from textwrap import dedent
 
 from shared.logging import get_logger
@@ -26,19 +31,19 @@ logger = get_logger(__name__)
 @router.message(Command("tasks_view"))
 async def command_advanced_task_view(message: Message) -> None:
     """Show advanced task viewing options.
-    
+
     :param message: Telegram message
     """
     if not message.from_user:
         await message.answer("❌ Error: could not determine user.")
         return
-    
+
     # Validate user access
     is_valid, error_msg = await validate_user_access(message)
     if not is_valid:
-        await send_or_edit_message(message, error_msg
+        await send_or_edit_message(message, error_msg)
         return
-    
+
     try:
         view_text = dedent("""
         👁️ <b>Advanced Task Views</b>
@@ -71,20 +76,44 @@ async def command_advanced_task_view(message: Message) -> None:
         
         Choose your preferred view:
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📋 List View", callback_data="view_list")],
-            [InlineKeyboardButton(text="📈 Analytics View", callback_data="view_analytics")],
-            [InlineKeyboardButton(text="🔍 Filtered View", callback_data="view_filtered")],
-            [InlineKeyboardButton(text="📊 Visual View", callback_data="view_visual")],
-            [InlineKeyboardButton(text="⚙️ Custom View", callback_data="view_custom")],
-            [InlineKeyboardButton(text="🔄 Refresh Data", callback_data="view_refresh")]
-        ])
-        
-        await send_or_edit_message(
-            message, view_text, keyboard, 
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="📋 List View", callback_data="view_list")],
+                [
+                    InlineKeyboardButton(
+                        text="📈 Analytics View", callback_data="view_analytics"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔍 Filtered View", callback_data="view_filtered"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Visual View", callback_data="view_visual"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚙️ Custom View", callback_data="view_custom"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Refresh Data", callback_data="view_refresh"
+                    )
+                ],
+            ]
         )
-        
+
+        await send_or_edit_message(
+            message,
+            view_text,
+            keyboard,
+        )
+
     except Exception as e:
         logger.error(f"Error showing advanced views: {e}")
         await message.answer("❌ Error showing task views.")
@@ -93,13 +122,13 @@ async def command_advanced_task_view(message: Message) -> None:
 @router.callback_query(lambda c: c.data == "view_list")
 async def callback_view_list(callback: CallbackQuery) -> None:
     """Show list view options.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         list_view_text = dedent("""
         📋 <b>List View Options</b>
@@ -127,30 +156,50 @@ async def callback_view_list(callback: CallbackQuery) -> None:
         <b>📈 Performance:</b>
         Sorted by success rate and quality metrics
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="⏰ Chronological", callback_data="list_chronological"),
-                InlineKeyboardButton(text="🎯 By Priority", callback_data="list_priority")
-            ],
-            [
-                InlineKeyboardButton(text="📊 By Status", callback_data="list_status"),
-                InlineKeyboardButton(text="📁 By Category", callback_data="list_category")
-            ],
-            [
-                InlineKeyboardButton(text="🏷️ By Tags", callback_data="list_tags"),
-                InlineKeyboardButton(text="👥 Collaboration", callback_data="list_collaboration")
-            ],
-            [InlineKeyboardButton(text="📈 Performance", callback_data="list_performance")],
-            [InlineKeyboardButton(text="◀️ Back to Views", callback_data="view_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="⏰ Chronological", callback_data="list_chronological"
+                    ),
+                    InlineKeyboardButton(
+                        text="🎯 By Priority", callback_data="list_priority"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 By Status", callback_data="list_status"
+                    ),
+                    InlineKeyboardButton(
+                        text="📁 By Category", callback_data="list_category"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(text="🏷️ By Tags", callback_data="list_tags"),
+                    InlineKeyboardButton(
+                        text="👥 Collaboration", callback_data="list_collaboration"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📈 Performance", callback_data="list_performance"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Views", callback_data="view_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, list_view_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing list view: {e}")
         await callback.answer("❌ Error showing list view.")
@@ -159,13 +208,13 @@ async def callback_view_list(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "view_analytics")
 async def callback_view_analytics(callback: CallbackQuery) -> None:
     """Show analytics view.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         analytics_text = dedent("""
         📈 <b>Task Analytics Dashboard</b>
@@ -206,22 +255,48 @@ async def callback_view_analytics(callback: CallbackQuery) -> None:
         • Optimal task timing: Weekday afternoons
         • Resource utilization: 87%
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📊 Detailed Metrics", callback_data="analytics_detailed")],
-            [InlineKeyboardButton(text="📈 Trend Analysis", callback_data="analytics_trends")],
-            [InlineKeyboardButton(text="🎯 Quality Report", callback_data="analytics_quality")],
-            [InlineKeyboardButton(text="⏱️ Time Analysis", callback_data="analytics_time")],
-            [InlineKeyboardButton(text="📋 Export Report", callback_data="analytics_export")],
-            [InlineKeyboardButton(text="◀️ Back to Views", callback_data="view_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📊 Detailed Metrics", callback_data="analytics_detailed"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📈 Trend Analysis", callback_data="analytics_trends"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Quality Report", callback_data="analytics_quality"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⏱️ Time Analysis", callback_data="analytics_time"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📋 Export Report", callback_data="analytics_export"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Views", callback_data="view_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, analytics_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing analytics view: {e}")
         await callback.answer("❌ Error showing analytics.")
@@ -230,13 +305,13 @@ async def callback_view_analytics(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "view_filtered")
 async def callback_view_filtered(callback: CallbackQuery) -> None:
     """Show filtered view options.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         filtered_text = dedent("""
         🔍 <b>Filtered Task Views</b>
@@ -277,30 +352,50 @@ async def callback_view_filtered(callback: CallbackQuery) -> None:
         • Dynamic smart filters
         • Collaborative filters
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="⏰ Time-based", callback_data="filter_time"),
-                InlineKeyboardButton(text="🎯 Quality", callback_data="filter_quality")
-            ],
-            [
-                InlineKeyboardButton(text="📊 Status", callback_data="filter_status"),
-                InlineKeyboardButton(text="📁 Category", callback_data="filter_category")
-            ],
-            [
-                InlineKeyboardButton(text="🏷️ Tags", callback_data="filter_tags"),
-                InlineKeyboardButton(text="🔧 Advanced", callback_data="filter_advanced")
-            ],
-            [InlineKeyboardButton(text="💾 Save Filter", callback_data="filter_save")],
-            [InlineKeyboardButton(text="◀️ Back to Views", callback_data="view_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="⏰ Time-based", callback_data="filter_time"
+                    ),
+                    InlineKeyboardButton(
+                        text="🎯 Quality", callback_data="filter_quality"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Status", callback_data="filter_status"
+                    ),
+                    InlineKeyboardButton(
+                        text="📁 Category", callback_data="filter_category"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(text="🏷️ Tags", callback_data="filter_tags"),
+                    InlineKeyboardButton(
+                        text="🔧 Advanced", callback_data="filter_advanced"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="💾 Save Filter", callback_data="filter_save"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Views", callback_data="view_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, filtered_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing filtered view: {e}")
         await callback.answer("❌ Error showing filtered view.")
@@ -309,13 +404,13 @@ async def callback_view_filtered(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "view_visual")
 async def callback_view_visual(callback: CallbackQuery) -> None:
     """Show visual view options.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         visual_text = dedent("""
         📊 <b>Visual Task Views</b>
@@ -359,29 +454,47 @@ async def callback_view_visual(callback: CallbackQuery) -> None:
         
         <i>Note: Advanced visualizations are being implemented</i>
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="📈 Timeline", callback_data="visual_timeline"),
-                InlineKeyboardButton(text="📊 Progress Charts", callback_data="visual_progress")
-            ],
-            [
-                InlineKeyboardButton(text="🥧 Distribution", callback_data="visual_distribution"),
-                InlineKeyboardButton(text="🗺️ Relationship Map", callback_data="visual_relationships")
-            ],
-            [
-                InlineKeyboardButton(text="🔥 Heatmaps", callback_data="visual_heatmaps"),
-                InlineKeyboardButton(text="📋 Export Visual", callback_data="visual_export")
-            ],
-            [InlineKeyboardButton(text="◀️ Back to Views", callback_data="view_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📈 Timeline", callback_data="visual_timeline"
+                    ),
+                    InlineKeyboardButton(
+                        text="📊 Progress Charts", callback_data="visual_progress"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🥧 Distribution", callback_data="visual_distribution"
+                    ),
+                    InlineKeyboardButton(
+                        text="🗺️ Relationship Map", callback_data="visual_relationships"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔥 Heatmaps", callback_data="visual_heatmaps"
+                    ),
+                    InlineKeyboardButton(
+                        text="📋 Export Visual", callback_data="visual_export"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="◀️ Back to Views", callback_data="view_back"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, visual_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing visual view: {e}")
         await callback.answer("❌ Error showing visual view.")
@@ -390,13 +503,13 @@ async def callback_view_visual(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "view_back")
 async def callback_view_back(callback: CallbackQuery) -> None:
     """Return to main view selection.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         view_text = dedent("""
         👁️ <b>Advanced Task Views</b>
@@ -429,22 +542,44 @@ async def callback_view_back(callback: CallbackQuery) -> None:
         
         Choose your preferred view:
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📋 List View", callback_data="view_list")],
-            [InlineKeyboardButton(text="📈 Analytics View", callback_data="view_analytics")],
-            [InlineKeyboardButton(text="🔍 Filtered View", callback_data="view_filtered")],
-            [InlineKeyboardButton(text="📊 Visual View", callback_data="view_visual")],
-            [InlineKeyboardButton(text="⚙️ Custom View", callback_data="view_custom")],
-            [InlineKeyboardButton(text="🔄 Refresh Data", callback_data="view_refresh")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="📋 List View", callback_data="view_list")],
+                [
+                    InlineKeyboardButton(
+                        text="📈 Analytics View", callback_data="view_analytics"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔍 Filtered View", callback_data="view_filtered"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Visual View", callback_data="view_visual"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚙️ Custom View", callback_data="view_custom"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Refresh Data", callback_data="view_refresh"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, view_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error returning to views: {e}")
         await callback.answer("❌ Error returning to views.")

@@ -44,7 +44,10 @@ async def rate_limit_check(message: Message, action: str) -> bool:
     """
     is_allowed, error_msg = await validate_rate_limit(message, action)
     if not is_allowed:
-        await send_or_edit_message(message, error_msg, )
+        await send_or_edit_message(
+            message,
+            error_msg,
+        )
         return False
     return True
 
@@ -78,21 +81,27 @@ async def create_task_for_user(user, description: str, message: Message) -> None
             """)
 
             await send_or_edit_message(
-                message, success_text, get_main_menu_keyboard(), 
+                message,
+                success_text,
+                get_main_menu_keyboard(),
             )
 
             logger.info(f"Task {task.id} created successfully for user {user.id}")
         else:
             error_text = "❌ Failed to create task. Please try again later."
             await send_or_edit_message(
-                message, error_text, get_main_menu_keyboard(), 
+                message,
+                error_text,
+                get_main_menu_keyboard(),
             )
 
     except Exception as e:
         logger.error(f"Error creating task: {e}")
         error_text = "❌ An error occurred while creating the task."
         await send_or_edit_message(
-            message, error_text, get_main_menu_keyboard(), 
+            message,
+            error_text,
+            get_main_menu_keyboard(),
         )
 
 
@@ -105,7 +114,10 @@ async def start_simple_task_creation(message: Message, state: FSMContext) -> Non
     # Validate user access
     is_valid, error_msg = await validate_user_access(message)
     if not is_valid:
-        await send_or_edit_message(message, error_msg, )
+        await send_or_edit_message(
+            message,
+            error_msg,
+        )
         return
 
     # Check rate limiting
@@ -115,10 +127,13 @@ async def start_simple_task_creation(message: Message, state: FSMContext) -> Non
     # Validate task creation permissions
     can_create, error_msg = await validate_task_creation(message)
     if not can_create:
-        await send_or_edit_message(message, error_msg, )
+        await send_or_edit_message(
+            message,
+            error_msg,
+        )
         return
 
-    user = await get_or_create_user(message.from_user.id)
+    await get_or_create_user(message.from_user.id)
 
     # Show simple prompt for task description
     prompt_text = dedent("""
@@ -134,7 +149,10 @@ async def start_simple_task_creation(message: Message, state: FSMContext) -> Non
     Just type your topic below:
     """)
 
-    await send_or_edit_message(message, prompt_text, )
+    await send_or_edit_message(
+        message,
+        prompt_text,
+    )
     await state.set_state(TaskCreationStates.waiting_for_description)
 
 
@@ -146,7 +164,10 @@ async def process_task_description(message: Message, state: FSMContext) -> None:
     """
     if not message.text or not message.from_user:
         error_text = "❌ Please provide a valid research topic."
-        await send_or_edit_message(message, error_text, )
+        await send_or_edit_message(
+            message,
+            error_text,
+        )
         return
 
     description = message.text.strip()
@@ -154,7 +175,10 @@ async def process_task_description(message: Message, state: FSMContext) -> None:
     # Validate task description
     is_valid, error_msg = validate_task_description(description)
     if not is_valid:
-        await send_or_edit_message(message, error_msg, )
+        await send_or_edit_message(
+            message,
+            error_msg,
+        )
         return
 
     # Create task
@@ -171,7 +195,5 @@ async def cancel_task_creation(message: Message, state: FSMContext) -> None:
     """
     await state.clear()
     await send_or_edit_message(
-        message,
-        "❌ Task creation cancelled.",
-        get_main_menu_keyboard()
+        message, "❌ Task creation cancelled.", get_main_menu_keyboard()
     )

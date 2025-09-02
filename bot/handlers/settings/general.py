@@ -1,46 +1,37 @@
 """
-General user settings handlers.
+General settings handlers.
 
-This module provides handlers for managing general user preferences,
-account settings, and basic configuration options.
+This module provides handlers for general user settings and preferences
+including notifications, research preferences, and account management.
 """
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from textwrap import dedent
 
-from shared.db import get_or_create_user, update_user_settings
 from shared.logging import get_logger
 from bot.handlers.utils.messages import send_or_edit_message
-from bot.handlers.utils.validation import validate_user_access
 
 router = Router(name="settings_general")
 logger = get_logger(__name__)
 
-# TODO: Implement comprehensive user preferences system
-# TODO: Add profile customization options
-# TODO: Implement privacy settings
-# TODO: Add language preferences
-# TODO: Implement timezone settings
-
 
 @router.message(Command("settings"))
 async def command_settings(message: Message) -> None:
-    """Show general settings menu.
-    
+    """Show main settings menu.
+
     :param message: Telegram message
     """
     if not message.from_user:
         await message.answer("❌ Error: could not determine user.")
         return
-    
-    # Validate user access
-    is_valid, error_msg = await validate_user_access(message)
-    if not is_valid:
-        await send_or_edit_message(message, error_msg
-        return
-    
+
     try:
         settings_text = dedent("""
         ⚙️ <b>Settings</b>
@@ -53,8 +44,8 @@ async def command_settings(message: Message) -> None:
         <b>🎯 Research Preferences:</b>
         Customize search and analysis behavior
         
-        <b>🧘‍♂️ Zen Mode:</b>
-        Configure focused research experience
+        <b>🧘‍♂️ Zen Tasks:</b>
+        Configure continuous research tasks
         
         <b>👤 Account:</b>
         Manage profile and privacy settings
@@ -62,20 +53,49 @@ async def command_settings(message: Message) -> None:
         <b>📊 Data & Export:</b>
         Control data usage and export options
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Notifications", callback_data="settings_notifications")],
-            [InlineKeyboardButton(text="🎯 Research Preferences", callback_data="settings_research")],
-            [InlineKeyboardButton(text="🧘‍♂️ Zen Mode", callback_data="settings_zen")],
-            [InlineKeyboardButton(text="👤 Account", callback_data="settings_account")],
-            [InlineKeyboardButton(text="📊 Data & Export", callback_data="settings_data")],
-            [InlineKeyboardButton(text="🔄 Reset All", callback_data="settings_reset")]
-        ])
-        
-        await send_or_edit_message(
-            message, settings_text, keyboard, 
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📢 Notifications", callback_data="settings_notifications"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Research Preferences",
+                        callback_data="settings_research",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🧘‍♂️ Zen Tasks", callback_data="settings_zen"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="👤 Account", callback_data="settings_account"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Data & Export", callback_data="settings_data"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Reset All", callback_data="settings_reset"
+                    )
+                ],
+            ]
         )
-        
+
+        await send_or_edit_message(
+            message,
+            settings_text,
+            keyboard,
+        )
+
     except Exception as e:
         logger.error(f"Error showing settings: {e}")
         await message.answer("❌ Error showing settings.")
@@ -84,13 +104,13 @@ async def command_settings(message: Message) -> None:
 @router.callback_query(lambda c: c.data == "settings_notifications")
 async def callback_settings_notifications(callback: CallbackQuery) -> None:
     """Handle notifications settings.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         # TODO: Get current notification settings from database
         notifications_text = dedent("""
@@ -116,21 +136,39 @@ async def callback_settings_notifications(callback: CallbackQuery) -> None:
         • Quality threshold: High
         • Importance level: Medium
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔕 Toggle All", callback_data="notifications_toggle_all")],
-            [InlineKeyboardButton(text="🎯 Set Threshold", callback_data="notifications_threshold")],
-            [InlineKeyboardButton(text="👥 Group Chat", callback_data="notifications_group")],
-            [InlineKeyboardButton(text="⏰ Schedule", callback_data="notifications_schedule")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="settings_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔕 Toggle All", callback_data="notifications_toggle_all"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Set Threshold", callback_data="notifications_threshold"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="👥 Group Chat", callback_data="notifications_group"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⏰ Schedule", callback_data="notifications_schedule"
+                    )
+                ],
+                [InlineKeyboardButton(text="◀️ Back", callback_data="settings_back")],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, notifications_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing notification settings: {e}")
         await callback.answer("❌ Error showing notification settings.")
@@ -139,57 +177,75 @@ async def callback_settings_notifications(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "settings_research")
 async def callback_settings_research(callback: CallbackQuery) -> None:
     """Handle research preferences settings.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         # TODO: Get current research preferences from database
         research_text = dedent("""
         🎯 <b>Research Preferences</b>
         
         <b>🔍 Search Behavior:</b>
-        • Search depth: Comprehensive
-        • Time range: Last 5 years
-        • Quality filter: High
+        • Default sources: All (arXiv, PubMed, Google Scholar)
+        • Search depth: Medium (10-20 papers)
+        • Relevance threshold: 75%
         • Language: English only
         
-        <b>📊 Analysis Settings:</b>
-        • AI summaries: ✅ Enabled
-        • Relevance scoring: ✅ Enabled
-        • Citation tracking: ✅ Enabled
-        • Related papers: ✅ Enabled
+        <b>📊 Analysis Style:</b>
+        • Summary length: Medium
+        • Technical detail: Balanced
+        • Include methodology: ✅ Yes
+        • Include limitations: ✅ Yes
         
-        <b>📈 Result Preferences:</b>
-        • Results per task: 50 papers max
+        <b>🎨 Result Format:</b>
         • Sort by: Relevance
-        • Group similar: ✅ Enabled
-        • Show abstracts: ✅ Enabled
+        • Group by: Topic
+        • Show abstracts: ✅ Yes
+        • Show citations: ✅ Yes
         
         <b>⚡ Performance:</b>
-        • Concurrent tasks: 3 max
-        • Auto-retry failed: ✅ Enabled
-        • Background processing: ✅ Enabled
-        • Cache results: ✅ Enabled
+        • Concurrent searches: 3
+        • Timeout: 30 seconds
+        • Retry failed: ✅ Yes
+        • Cache results: ✅ Yes
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Search Settings", callback_data="research_search")],
-            [InlineKeyboardButton(text="📊 Analysis Options", callback_data="research_analysis")],
-            [InlineKeyboardButton(text="📈 Result Format", callback_data="research_results")],
-            [InlineKeyboardButton(text="⚡ Performance", callback_data="research_performance")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="settings_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔍 Search Settings", callback_data="research_search"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Analysis Style", callback_data="research_analysis"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎨 Format Options", callback_data="research_format"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⚡ Performance", callback_data="research_performance"
+                    )
+                ],
+                [InlineKeyboardButton(text="◀️ Back", callback_data="settings_back")],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, research_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing research settings: {e}")
         await callback.answer("❌ Error showing research settings.")
@@ -198,30 +254,26 @@ async def callback_settings_research(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "settings_account")
 async def callback_settings_account(callback: CallbackQuery) -> None:
     """Handle account settings.
-    
+
     :param callback: Callback query
     """
-    if not callback.message or not callback.from_user:
-        await callback.answer("❌ Error: message or user not accessible.")
+    if not callback.message:
+        await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
-        # TODO: Get current user account information
+        # TODO: Get current account info from database
+        from shared.db import get_or_create_user
+
         user = await get_or_create_user(callback.from_user.id)
-        
+
         account_text = dedent(f"""
         👤 <b>Account Settings</b>
         
         <b>📋 Profile:</b>
-        • Name: {callback.from_user.full_name or 'Not set'}
-        • Username: @{callback.from_user.username or 'Not set'}
-        • User ID: {callback.from_user.id}
-        • Plan: {user.plan}
-        
-        <b>📊 Usage Statistics:</b>
-        • Daily tasks: {user.daily_tasks_created}/{user.daily_task_limit}
-        • Total tasks: TBD
-        • Member since: {user.created_at.strftime('%B %Y')}
+        • User ID: {user.id}
+        • Username: @{callback.from_user.username or "Not set"}
+        • Member since: {user.created_at.strftime("%B %Y")}
         • Last active: TBD
         
         <b>🔒 Privacy Settings:</b>
@@ -236,22 +288,44 @@ async def callback_settings_account(callback: CallbackQuery) -> None:
         • Date format: TBD
         • Theme: Default
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📝 Edit Profile", callback_data="account_profile")],
-            [InlineKeyboardButton(text="📈 Upgrade Plan", callback_data="account_upgrade")],
-            [InlineKeyboardButton(text="🔒 Privacy", callback_data="account_privacy")],
-            [InlineKeyboardButton(text="📤 Export Data", callback_data="account_export")],
-            [InlineKeyboardButton(text="🗑️ Delete Account", callback_data="account_delete")],
-            [InlineKeyboardButton(text="◀️ Back", callback_data="settings_back")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📝 Edit Profile", callback_data="account_profile"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📈 Upgrade Plan", callback_data="account_upgrade"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔒 Privacy", callback_data="account_privacy"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📤 Export Data", callback_data="account_export"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🗑️ Delete Account", callback_data="account_delete"
+                    )
+                ],
+                [InlineKeyboardButton(text="◀️ Back", callback_data="settings_back")],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, account_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error showing account settings: {e}")
         await callback.answer("❌ Error showing account settings.")
@@ -260,13 +334,13 @@ async def callback_settings_account(callback: CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data == "settings_back")
 async def callback_settings_back(callback: CallbackQuery) -> None:
     """Return to main settings menu.
-    
+
     :param callback: Callback query
     """
     if not callback.message:
         await callback.answer("❌ Error: message not accessible.")
         return
-    
+
     try:
         settings_text = dedent("""
         ⚙️ <b>Settings</b>
@@ -279,8 +353,8 @@ async def callback_settings_back(callback: CallbackQuery) -> None:
         <b>🎯 Research Preferences:</b>
         Customize search and analysis behavior
         
-        <b>🧘‍♂️ Zen Mode:</b>
-        Configure focused research experience
+        <b>🧘‍♂️ Zen Tasks:</b>
+        Configure continuous research tasks
         
         <b>👤 Account:</b>
         Manage profile and privacy settings
@@ -288,29 +362,56 @@ async def callback_settings_back(callback: CallbackQuery) -> None:
         <b>📊 Data & Export:</b>
         Control data usage and export options
         """)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Notifications", callback_data="settings_notifications")],
-            [InlineKeyboardButton(text="🎯 Research Preferences", callback_data="settings_research")],
-            [InlineKeyboardButton(text="🧘‍♂️ Zen Mode", callback_data="settings_zen")],
-            [InlineKeyboardButton(text="👤 Account", callback_data="settings_account")],
-            [InlineKeyboardButton(text="📊 Data & Export", callback_data="settings_data")],
-            [InlineKeyboardButton(text="🔄 Reset All", callback_data="settings_reset")]
-        ])
-        
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📢 Notifications", callback_data="settings_notifications"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🎯 Research Preferences",
+                        callback_data="settings_research",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🧘‍♂️ Zen Tasks", callback_data="settings_zen"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="👤 Account", callback_data="settings_account"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📊 Data & Export", callback_data="settings_data"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔄 Reset All", callback_data="settings_reset"
+                    )
+                ],
+            ]
+        )
+
         await send_or_edit_message(
             callback.message, settings_text, keyboard, edit_mode=True
         )
-        
+
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error returning to settings: {e}")
         await callback.answer("❌ Error returning to settings.")
 
 
 # TODO: Implement remaining settings handlers:
-# - settings_zen - Zen mode configuration
+# - settings_zen - Zen tasks configuration
 # - settings_data - Data management and export
 # - settings_reset - Reset to defaults
 # - account_profile - Profile editing

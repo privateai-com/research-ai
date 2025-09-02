@@ -144,7 +144,7 @@ async def track_bot_message(
     # Limit dictionary size to prevent memory leaks
     if len(_last_bot_messages) > MAX_TRACKED_USERS:
         # Remove old entries (remove 20% of the oldest)
-        items_to_remove = list(_last_bot_messages.keys())[:MAX_TRACKED_USERS // 5]
+        items_to_remove = list(_last_bot_messages.keys())[: MAX_TRACKED_USERS // 5]
         for key in items_to_remove:
             _last_bot_messages.pop(key, None)
             _last_message_content.pop(key, None)
@@ -194,7 +194,9 @@ async def set_function_context_message(context_key: str, message: Message) -> No
     # Limit the size of context messages dictionary
     if len(_function_context_messages) > MAX_TRACKED_USERS:
         # Remove oldest entries (first 20%)
-        items_to_remove = list(_function_context_messages.keys())[:MAX_TRACKED_USERS // 5]
+        items_to_remove = list(_function_context_messages.keys())[
+            : MAX_TRACKED_USERS // 5
+        ]
         for key in items_to_remove:
             _function_context_messages.pop(key, None)
 
@@ -248,7 +250,9 @@ def get_message_content_stats() -> Dict[str, int]:
         "max_content_size": MAX_CONTENT_SIZE,
         "total_content_chars": total_content_size,
         "memory_usage_estimate_kb": (
-            len(_last_bot_messages) * 2 + len(_function_context_messages) * 2 + total_content_size // 500
+            len(_last_bot_messages) * 2
+            + len(_function_context_messages) * 2
+            + total_content_size // 500
         ),  # More accurate estimate
     }
 
@@ -280,7 +284,7 @@ async def send_or_edit_message(
         message = safe_message_from_callback(message)
         if message is None:
             raise ValueError("Message is not accessible")
-    
+
     user_id = message.from_user.id if message.from_user else None
 
     # Check if we have a function-specific message to edit
@@ -294,7 +298,9 @@ async def send_or_edit_message(
 
             if not has_message_content_changed(context_message, text, inline_keyboard):
                 # Content hasn't changed, return existing message
-                logger.debug(f"Function context message content unchanged, skipping edit for {function_context_key}")
+                logger.debug(
+                    f"Function context message content unchanged, skipping edit for {function_context_key}"
+                )
                 return context_message
 
             try:
@@ -309,7 +315,9 @@ async def send_or_edit_message(
                     }
                 return context_message
             except Exception as e:
-                logger.warning(f"Failed to edit function context message {function_context_key}: {e}")
+                logger.warning(
+                    f"Failed to edit function context message {function_context_key}: {e}"
+                )
                 # Continue with normal flow
 
     if edit_mode or navigation_context:

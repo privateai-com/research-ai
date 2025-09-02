@@ -357,7 +357,9 @@ def create_source_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def create_status_keyboard(active_tasks, completed_tasks, paused_tasks=None, cancelled_tasks=None) -> InlineKeyboardMarkup:
+def create_status_keyboard(
+    active_tasks, completed_tasks, paused_tasks=None, cancelled_tasks=None
+) -> InlineKeyboardMarkup:
     """Create keyboard for status view.
 
     :param active_tasks: List of active tasks
