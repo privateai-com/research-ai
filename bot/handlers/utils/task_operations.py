@@ -74,10 +74,12 @@ async def create_task_for_user(user, description: str, message: Message) -> None
             ✅ <b>Task Created Successfully!</b>
 
             📋 <b>Task #{task.id}:</b> {escape_html(cut_text(description, 60))}
-            🎯 <b>Status:</b> Task queued for processing
-            🔄 <b>Next:</b> Agent will search research databases
+            🎯 <b>Status:</b> Queued for processing
+            🔄 <b>Next:</b> AI agent will search multiple research databases
 
-            ⏱️ <b>Estimated time:</b> Results usually start appearing within 5-10 minutes
+            ⏱️ <b>Estimated time:</b> Results typically start appearing within 5-10 minutes
+            You can check progress anytime with the <b>📊 Status</b> button
+            View results with the <b>📚 Results</b> button when ready
             """)
 
             await send_or_edit_message(
@@ -141,12 +143,19 @@ async def start_simple_task_creation(message: Message, state: FSMContext) -> Non
 
     What would you like me to research?
 
-            <b>Examples:</b>
-    • cancer treatment
-    • renewable energy
-    • machine learning
+    <b>💡 Examples:</b>
+    • <i>CRISPR gene editing applications</i>
+    • <i>renewable energy storage solutions</i>
+    • <i>machine learning in medical diagnosis</i>
+    • <i>quantum computing advances</i>
+    • <i>climate change mitigation strategies</i>
 
-    Just type your topic below:
+    <b>💭 Tips for better results:</b>
+    • Be specific about your research area
+    • Include relevant keywords or technologies
+    • Mention the field or application domain
+
+    Just type your research topic below:
     """)
 
     await send_or_edit_message(

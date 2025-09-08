@@ -197,16 +197,34 @@ class ResultsPaginationHandler(PaginationHandler):
         )
 
     def _result_formatter(self, result: Tuple[Any, Any], index: int) -> str:
-        """Format result for display.
+        """Format result for display with enhanced information.
 
         :param result: (analysis, paper) tuple
         :param index: Result index
         :return: Formatted result string
         """
         analysis, paper = result
-        title = cut_text(paper.title, 35)
+        title = cut_text(paper.title, 32)
         relevance = analysis.relevance
-        return f"📄 {title} ({relevance:.0f}%)"
+
+        # Add relevance indicator emoji
+        relevance_indicator = (
+            "🟢" if relevance >= 80 else "🟡" if relevance >= 60 else "🟠"
+        )
+
+        # Add source indicator if available
+        source_indicator = ""
+        if hasattr(paper, "arxiv_id") and paper.arxiv_id:
+            if paper.arxiv_id.startswith("pubmed:"):
+                source_indicator = "🧬"
+            elif paper.arxiv_id.startswith("github:"):
+                source_indicator = "💻"
+            elif paper.arxiv_id.startswith("scholar:"):
+                source_indicator = "🎓"
+            else:
+                source_indicator = "📚"  # ArXiv or other
+
+        return f"{relevance_indicator}{source_indicator} {title} ({relevance:.0f}%)"
 
 
 async def handle_pagination_callback(

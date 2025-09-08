@@ -118,9 +118,13 @@ def scholar_search(
     items = browser.search(query=query, max_results=max_results, start=start)
     out: List[PaperCandidate] = []
     for it in items:
+        # Use URL as identifier for Scholar results since they don't have stable IDs
+        # Format it to make it distinguishable from ArXiv IDs
+        arxiv_id = f"scholar:{it.url}" if not it.item_id else it.item_id
+
         out.append(
             PaperCandidate(
-                arxiv_id=it.item_id or it.url,
+                arxiv_id=arxiv_id,
                 title=it.title,
                 summary=it.snippet or "",
                 categories=[],
@@ -152,9 +156,13 @@ def pubmed_search(
     items = browser.search(query=query, max_results=max_results, start=start)
     out: List[PaperCandidate] = []
     for it in items:
+        # Use PMID as a unique identifier for PubMed articles
+        # Format it to make it distinguishable from ArXiv IDs
+        arxiv_id = f"pubmed:{it.item_id}" if it.item_id else it.url
+
         out.append(
             PaperCandidate(
-                arxiv_id=it.item_id or it.url,
+                arxiv_id=arxiv_id,
                 title=it.title,
                 summary=it.snippet or "",
                 categories=[],
@@ -188,9 +196,13 @@ def github_search(
     items = browser.search(query=query, max_results=max_results, start=start)
     out: List[PaperCandidate] = []
     for it in items:
+        # Use GitHub repository ID as a unique identifier
+        # Format it to make it distinguishable from ArXiv IDs
+        arxiv_id = f"github:{it.item_id}" if it.item_id else it.url
+
         out.append(
             PaperCandidate(
-                arxiv_id=it.item_id or it.url,
+                arxiv_id=arxiv_id,
                 title=it.title,
                 summary=it.snippet or "",
                 categories=[],
@@ -206,6 +218,55 @@ def github_search(
         )
     logger.info(f"github_search got {len(out)} candidates")
     return out
+
+
+def _generate_dedup_key(candidate: PaperCandidate) -> str:
+    """Generate a unique key for deduplication of candidates.
+
+    Uses multiple strategies to identify the same paper from different sources:
+    1. DOI (most reliable)
+    2. Source-prefixed IDs (pubmed:, github:, scholar:, arxiv:)
+    3. ArXiv ID (for ArXiv papers without prefix)
+    4. Title normalization (fallback)
+    5. URL (last resort)
+
+    :param candidate: Paper candidate to generate key for
+    :returns: Unique deduplication key
+    """
+    # Strategy 1: Use DOI if available (most reliable)
+    if candidate.doi and candidate.doi.strip():
+        return f"doi:{candidate.doi.strip().lower()}"
+
+    # Strategy 2: Use source-prefixed IDs (already formatted by search functions)
+    if candidate.arxiv_id and candidate.arxiv_id.startswith(
+        ("pubmed:", "github:", "scholar:")
+    ):
+        return candidate.arxiv_id.lower()
+
+    # Strategy 3: Use ArXiv ID if it looks like a real ArXiv ID (not a URL)
+    if (
+        candidate.arxiv_id
+        and not candidate.arxiv_id.startswith(("http://", "https://"))
+        and ("." in candidate.arxiv_id or candidate.arxiv_id.isdigit())
+    ):
+        return f"arxiv:{candidate.arxiv_id.strip().lower()}"
+
+    # Strategy 4: Use normalized title for papers that might be the same
+    if candidate.title and candidate.title.strip():
+        # Normalize title: lowercase, remove punctuation, take first 8 words
+        import re
+
+        normalized_title = re.sub(r"[^\w\s]", "", candidate.title.lower().strip())
+        normalized_title = " ".join(normalized_title.split()[:8])  # First 8 words
+        if normalized_title:
+            return f"title:{normalized_title[:50]}"
+
+    # Strategy 5: Use URL as last resort
+    if candidate.abs_url:
+        return f"url:{candidate.abs_url.strip().lower()}"
+
+    # Fallback: use arxiv_id even if it's a URL
+    return f"fallback:{candidate.arxiv_id.strip().lower()}"
 
 
 def collect_candidates(
@@ -271,9 +332,14 @@ def collect_candidates(
             try:
                 page = future.result()
                 for c in page:
-                    if c.arxiv_id in seen:
+                    # Generate deduplication key using improved strategy
+                    dedup_key = _generate_dedup_key(c)
+                    if dedup_key in seen:
+                        logger.debug(
+                            f"Skipping duplicate candidate: {c.title[:50]}... (key: {dedup_key})"
+                        )
                         continue
-                    seen.add(c.arxiv_id)
+                    seen.add(dedup_key)
                     collected.append(c)
             except Exception as e:
                 logger.error(

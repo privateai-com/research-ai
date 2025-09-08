@@ -265,10 +265,7 @@ def create_result_detail_keyboard(result_idx: int) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text="💾 Save Result", callback_data=f"save_result_{result_idx}"
-                ),
-                InlineKeyboardButton(
-                    text="🔍 More Sources", callback_data=f"more_sources_{result_idx}"
-                ),
+                )
             ],
             [
                 InlineKeyboardButton(
@@ -277,84 +274,6 @@ def create_result_detail_keyboard(result_idx: int) -> InlineKeyboardMarkup:
             ],
         ]
     )
-
-
-def create_source_keyboard(
-    result_idx: int,
-    arxiv_id: Optional[str] = None,
-    doi: Optional[str] = None,
-    pmid: Optional[str] = None,
-    title: Optional[str] = None,
-) -> InlineKeyboardMarkup:
-    """Create keyboard for additional sources.
-
-    :param result_idx: Result index
-    :param arxiv_id: ArXiv ID if available
-    :param doi: DOI if available
-    :param pmid: PubMed ID if available
-    :param title: Paper title for Google Scholar search
-    :returns: Inline keyboard markup
-    """
-    buttons = []
-
-    # Add source buttons
-    if arxiv_id:
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text="📚 arXiv",
-                    url=f"https://arxiv.org/abs/{arxiv_id}",
-                    callback_data=f"track_click_arxiv_{result_idx}",
-                )
-            ]
-        )
-
-    if doi:
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text="🔬 DOI",
-                    url=f"https://doi.org/{doi}",
-                    callback_data=f"track_click_doi_{result_idx}",
-                )
-            ]
-        )
-
-    if pmid:
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text="🧬 PubMed",
-                    url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
-                    callback_data=f"track_click_pubmed_{result_idx}",
-                )
-            ]
-        )
-
-    if title:
-        import urllib.parse
-
-        search_query = urllib.parse.quote(title)
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text="🔍 Google Scholar",
-                    url=f"https://scholar.google.com/scholar?q={search_query}",
-                    callback_data=f"track_click_scholar_{result_idx}",
-                )
-            ]
-        )
-
-    # Add back button
-    buttons.append(
-        [
-            InlineKeyboardButton(
-                text="🔙 Back to Result", callback_data=f"show_result_{result_idx}"
-            )
-        ]
-    )
-
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def create_status_keyboard(

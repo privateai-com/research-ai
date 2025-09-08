@@ -14,41 +14,23 @@ from datetime import datetime
 
 from shared.logging import get_logger
 from bot.handlers.utils.messages import send_or_edit_message
+from bot.handlers.utils.admin import admin_required
 
 router = Router(name="admin_metrics")
 logger = get_logger(__name__)
 
-# TODO: Add admin permission check decorator
-# TODO: Implement proper admin role system
-# TODO: Add configuration for admin user IDs
-
-ADMIN_USER_IDS = set([579396533])  # TODO: Load from config or database
-
-
-async def is_admin(user_id: int) -> bool:
-    """Check if user has admin privileges.
-
-    :param user_id: Telegram user ID
-    :returns: True if user is admin
-    """
-    # TODO: Implement proper admin role system
-    return user_id in ADMIN_USER_IDS
+# TODO: Implement database metrics collection
+# TODO: Implement bot-specific metrics
+# TODO: Implement network metrics collection
 
 
 @router.message(Command("admin_metrics"))
+@admin_required
 async def command_admin_metrics(message: Message) -> None:
     """Show system metrics for admins.
 
-    :param message: Telegram message
+    :param message: Telegram message object
     """
-    if not message.from_user:
-        await message.answer("❌ Error: could not determine user.")
-        return
-
-    # TODO: Implement proper admin check
-    if not await is_admin(message.from_user.id):
-        await message.answer("❌ Access denied. Admin privileges required.")
-        return
 
     try:
         metrics_text = await _generate_system_metrics()
@@ -71,18 +53,30 @@ async def _generate_system_metrics() -> str:
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage("/")
 
-        # TODO: Add network metrics
-        # network = psutil.net_io_counters()
+        # Get network metrics
+        try:
+            network = psutil.net_io_counters()
+            bytes_sent = network.bytes_sent if network else 0
+            bytes_recv = network.bytes_recv if network else 0
+        except Exception:
+            bytes_sent = bytes_recv = 0
 
-        # TODO: Add process-specific metrics
-        # process = psutil.Process()
-        # process_memory = process.memory_info()
+        # Get process-specific metrics
+        try:
+            import os
 
-        # TODO: Add database metrics
+            process = psutil.Process(os.getpid())
+            process_memory = process.memory_info()
+            process_cpu = process.cpu_percent()
+        except Exception:
+            process_memory = None
+            process_cpu = 0.0
+
+        # TODO: Add database metrics (requires database connection count implementation)
         # db_connections = await get_db_connection_count()
         # db_size = await get_db_size()
 
-        # TODO: Add bot-specific metrics
+        # TODO: Add bot-specific metrics (requires implementation)
         # active_users = await get_active_user_count()
         # message_queue_size = await get_message_queue_size()
 
@@ -99,9 +93,9 @@ async def _generate_system_metrics() -> str:
         • Disk Free: {disk.free // (1024**3):.1f}GB
         
         <b>🔗 Network:</b>
-        • Bytes Sent: TBD
-        • Bytes Received: TBD
-        • Active Connections: TBD
+        • Bytes Sent: {bytes_sent // (1024**2):.1f}MB
+        • Bytes Received: {bytes_recv // (1024**2):.1f}MB
+        • Active Connections: {len(psutil.net_connections()) if hasattr(psutil, "net_connections") else "N/A"}
         
         <b>🗄️ Database:</b>
         • Connection Pool: TBD
@@ -109,10 +103,12 @@ async def _generate_system_metrics() -> str:
         • Database Size: TBD MB
         
         <b>🤖 Bot Performance:</b>
-        • Active Users: TBD
-        • Messages/min: TBD
-        • Response Time: TBD ms avg
-        • Queue Size: TBD
+        • Bot Process CPU: {process_cpu:.1f}%
+        • Bot Process Memory: {(process_memory.rss // (1024**2)) if process_memory else "N/A"}MB
+        • Active Users: Not implemented yet
+        • Messages/min: Not implemented yet
+        • Response Time: Not implemented yet
+        • Queue Size: Not implemented yet
         
         <b>⚡ Agent Pipeline:</b>
         • Tasks in Queue: TBD
@@ -131,19 +127,12 @@ async def _generate_system_metrics() -> str:
 
 
 @router.message(Command("admin_health"))
+@admin_required
 async def command_admin_health(message: Message) -> None:
     """Show system health status for admins.
 
-    :param message: Telegram message
+    :param message: Telegram message object
     """
-    if not message.from_user:
-        await message.answer("❌ Error: could not determine user.")
-        return
-
-    # TODO: Implement proper admin check
-    if not await is_admin(message.from_user.id):
-        await message.answer("❌ Access denied. Admin privileges required.")
-        return
 
     try:
         health_text = await _generate_health_report()
@@ -244,19 +233,12 @@ async def _generate_health_report() -> str:
 
 
 @router.message(Command("admin_alerts"))
+@admin_required
 async def command_admin_alerts(message: Message) -> None:
     """Show and manage system alerts for admins.
 
-    :param message: Telegram message
+    :param message: Telegram message object
     """
-    if not message.from_user:
-        await message.answer("❌ Error: could not determine user.")
-        return
-
-    # TODO: Implement proper admin check
-    if not await is_admin(message.from_user.id):
-        await message.answer("❌ Access denied. Admin privileges required.")
-        return
 
     try:
         # TODO: Implement alert management system

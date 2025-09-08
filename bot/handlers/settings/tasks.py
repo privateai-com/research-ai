@@ -39,14 +39,29 @@ async def command_task_settings(message: Message) -> None:
         return
 
     try:
-        # TODO: Get current task settings from database
-        task_settings_text = dedent("""
+        # Get current task settings from database
+        from shared.db import get_user_settings
+
+        user_settings = None
+        try:
+            user_settings = await get_user_settings(message.from_user.id)
+        except Exception as e:
+            logger.warning(f"Could not get user settings: {e}")
+
+        # Use settings from database or defaults
+        quality_threshold = (
+            getattr(user_settings, "instant_notification_threshold", 75.0)
+            if user_settings
+            else 75.0
+        )
+
+        task_settings_text = dedent(f"""
         🎯 <b>Task Settings</b>
         
         Configure default behavior for research tasks:
         
         <b>🔍 Default Search:</b>
-        • Quality threshold: 75%
+        • Quality threshold: {quality_threshold:.0f}%
         • Time range: Last 5 years
         • Max results: 50 papers
         • Auto-retry: ✅ Enabled
@@ -210,14 +225,27 @@ async def callback_task_templates(callback: CallbackQuery) -> None:
         return
 
     try:
-        # TODO: Get user's saved templates from database
-        templates_text = dedent("""
+        # Get user's saved templates from database
+        user_templates = []  # TODO: Implement template storage in database
+
+        user_templates_text = ""
+        if user_templates:
+            user_templates_text = "\n".join(
+                [
+                    f"• {template['name']} - {template['description']}"
+                    for template in user_templates
+                ]
+            )
+        else:
+            user_templates_text = "• No saved templates yet"
+
+        templates_text = dedent(f"""
         📋 <b>Task Templates</b>
         
         Manage and create reusable task configurations:
         
         <b>📚 Your Templates:</b>
-        • No saved templates yet
+        {user_templates_text}
         
         <b>🏭 System Templates:</b>
         • Literature Review - Comprehensive academic research

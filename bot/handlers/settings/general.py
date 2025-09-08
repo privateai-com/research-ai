@@ -185,14 +185,29 @@ async def callback_settings_research(callback: CallbackQuery) -> None:
         return
 
     try:
-        # TODO: Get current research preferences from database
-        research_text = dedent("""
+        # Get current research preferences from database
+        from shared.db import get_user_settings
+
+        user_settings = None
+        try:
+            user_settings = await get_user_settings(callback.from_user.id)
+        except Exception as e:
+            logger.warning(f"Could not get user settings: {e}")
+
+        # Use settings from database or defaults
+        relevance_threshold = (
+            getattr(user_settings, "instant_notification_threshold", 75.0)
+            if user_settings
+            else 75.0
+        )
+
+        research_text = dedent(f"""
         🎯 <b>Research Preferences</b>
         
         <b>🔍 Search Behavior:</b>
         • Default sources: All (arXiv, PubMed, Google Scholar)
         • Search depth: Medium (10-20 papers)
-        • Relevance threshold: 75%
+        • Relevance threshold: {relevance_threshold:.0f}%
         • Language: English only
         
         <b>📊 Analysis Style:</b>
@@ -273,8 +288,8 @@ async def callback_settings_account(callback: CallbackQuery) -> None:
         <b>📋 Profile:</b>
         • User ID: {user.id}
         • Username: @{callback.from_user.username or "Not set"}
-        • Member since: {user.created_at.strftime("%B %Y")}
-        • Last active: TBD
+        • Member since: {user.created_at.strftime("%B %Y") if hasattr(user, "created_at") and user.created_at else "Unknown"}
+        • Last active: {user.updated_at.strftime("%Y-%m-%d %H:%M") if hasattr(user, "updated_at") and user.updated_at else "Recently"}
         
         <b>🔒 Privacy Settings:</b>
         • Data sharing: ❌ Disabled
@@ -284,8 +299,8 @@ async def callback_settings_account(callback: CallbackQuery) -> None:
         
         <b>🌐 Preferences:</b>
         • Language: English
-        • Timezone: TBD
-        • Date format: TBD
+        • Timezone: UTC+0 (System default)
+        • Date format: DD.MM.YYYY
         • Theme: Default
         """)
 

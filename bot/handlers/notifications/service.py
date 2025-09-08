@@ -24,6 +24,39 @@ from shared.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _validate_notification_has_links(
+    text: str, expected_link: str | None = None
+) -> bool:
+    """Validate that notification text contains source links.
+
+    :param text: Notification text to validate.
+    :param expected_link: Optional expected link that should be present.
+    :returns: True if text contains valid links, False otherwise.
+    """
+    import re
+
+    # Check for common link patterns
+    link_patterns = [
+        r"https?://arxiv\.org/[^\s]+",  # arXiv links
+        r"https?://[^\s]+",  # General HTTP links
+        r"Open on arXiv:",  # arXiv call-to-action
+        r"📎\s*https?://",  # Link with clip emoji
+        r"Links?:\s*https?://",  # Links section
+    ]
+
+    has_link = any(re.search(pattern, text, re.IGNORECASE) for pattern in link_patterns)
+
+    if expected_link and expected_link not in text:
+        logger.warning(f"Expected link {expected_link} not found in notification text")
+        return False
+
+    if not has_link:
+        logger.warning("No source links found in notification text")
+        return False
+
+    return True
+
+
 async def get_target_chat_id(user_id: int) -> int:
     """Return group chat ID if configured, otherwise personal user ID.
 
@@ -72,10 +105,16 @@ def _get_simplifier_agent():
         - 1–3 short lines with the essence and usefulness
         - Final line: a call to action with the link label 'Open on arXiv: <link>'
 
+        CRITICAL REQUIREMENT:
+        - ALWAYS preserve the original arXiv link exactly as provided
+        - The link MUST appear in the output unchanged
+        - Include the full URL starting with 'http' or 'https'
+
         Rules:
         - Use a warm tone, simple vocabulary, and short sentences
         - No markdown or HTML tags, only plain text
         - Max length 600 characters total
+        - NEVER remove, shorten, or modify the source link
         """
         ),
     )
@@ -87,6 +126,12 @@ async def simplify_for_layperson(text: str) -> str:
     :param text: Input facts block.
     :returns: Simplified text without markup, friendly to non-technical readers.
     """
+    import re
+
+    # Extract the original link to ensure it's preserved
+    link_match = re.search(r"Link: (https?://[^\s]+)", text)
+    original_link = link_match.group(1) if link_match else None
+
     try:
         from agents import Runner
 
@@ -96,7 +141,18 @@ async def simplify_for_layperson(text: str) -> str:
         )
         # TODO: Implement more sophisticated HTML/markdown cleanup
         # Basic post-clean: remove any stray tags just in case
-        return simplified.replace("<", "").replace(">", "")
+        simplified = simplified.replace("<", "").replace(">", "")
+
+        # Ensure the original link is present in the simplified text
+        if original_link and original_link not in simplified:
+            logger.warning(
+                f"Original link missing from simplified text, adding it back: {original_link}"
+            )
+            if not simplified.endswith("\n"):
+                simplified += "\n"
+            simplified += f"Open on arXiv: {original_link}"
+
+        return simplified
     except Exception as error:
         logger.error(f"Notification simplification failed: {error}")
         return text
@@ -203,6 +259,13 @@ async def send_analysis_report(bot: Bot, user_id: int, analysis_id: int) -> None
         )
 
         simple_text = await simplify_for_layperson(facts)
+
+        # Validate that the simplified text contains the source link
+        if not _validate_notification_has_links(simple_text, paper.abs_url):
+            logger.error(f"Notification validation failed for analysis {analysis_id}")
+            # Add the link manually if missing
+            if paper.abs_url and paper.abs_url not in simple_text:
+                simple_text += f"\n\nOpen on arXiv: {paper.abs_url}"
 
         target_chat_id = await get_target_chat_id(user_id)
         await send_message_to_target_chat(

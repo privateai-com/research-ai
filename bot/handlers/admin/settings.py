@@ -12,16 +12,14 @@ from textwrap import dedent
 
 from shared.logging import get_logger
 from bot.handlers.utils.messages import send_or_edit_message
+from bot.handlers.utils.admin import admin_required
 
 router = Router(name="admin_settings")
 logger = get_logger(__name__)
 
-# TODO: Add admin permission check decorator
-# TODO: Implement proper admin role system
-# TODO: Add configuration for admin user IDs
 # TODO: Implement settings persistence in database
-
-ADMIN_USER_IDS = set([579396533])  # TODO: Load from config or database
+# TODO: Implement rate limit enforcement
+# TODO: Implement feature flag persistence
 
 # System configuration cache
 # TODO: Move to database and implement proper config management
@@ -52,30 +50,13 @@ SYSTEM_CONFIG = {
 }
 
 
-async def is_admin(user_id: int) -> bool:
-    """Check if user has admin privileges.
-
-    :param user_id: Telegram user ID
-    :returns: True if user is admin
-    """
-    # TODO: Implement proper admin role system
-    return user_id in ADMIN_USER_IDS
-
-
 @router.message(Command("admin_settings"))
+@admin_required
 async def command_admin_settings(message: Message) -> None:
     """Show current system settings for admins.
 
-    :param message: Telegram message
+    :param message: Telegram message object
     """
-    if not message.from_user:
-        await message.answer("❌ Error: could not determine user.")
-        return
-
-    # TODO: Implement proper admin check
-    if not await is_admin(message.from_user.id):
-        await message.answer("❌ Access denied. Admin privileges required.")
-        return
 
     try:
         settings_text = _generate_settings_report()
@@ -135,19 +116,12 @@ def _generate_settings_report() -> str:
 
 
 @router.message(Command("admin_maintenance"))
+@admin_required
 async def command_admin_maintenance(message: Message) -> None:
     """Toggle maintenance mode.
 
-    :param message: Telegram message
+    :param message: Telegram message object
     """
-    if not message.from_user:
-        await message.answer("❌ Error: could not determine user.")
-        return
-
-    # TODO: Implement proper admin check
-    if not await is_admin(message.from_user.id):
-        await message.answer("❌ Access denied. Admin privileges required.")
-        return
 
     try:
         # Toggle maintenance mode
@@ -173,7 +147,9 @@ async def command_admin_maintenance(message: Message) -> None:
             response_text,
         )
 
-        logger.info(f"Admin {message.from_user.id} {status.lower()} maintenance mode")
+        user_info = f"{message.from_user.id}" if message.from_user else "unknown"
+        username = message.from_user.username if message.from_user else "unknown"
+        logger.info(f"Admin {user_info} ({username}) {status.lower()} maintenance mode")
 
     except Exception as e:
         logger.error(f"Error toggling maintenance mode: {e}")
@@ -181,19 +157,12 @@ async def command_admin_maintenance(message: Message) -> None:
 
 
 @router.message(Command("admin_rate_limit"))
+@admin_required
 async def command_admin_rate_limit(message: Message) -> None:
     """Manage rate limits.
 
-    :param message: Telegram message
+    :param message: Telegram message object
     """
-    if not message.from_user:
-        await message.answer("❌ Error: could not determine user.")
-        return
-
-    # TODO: Implement proper admin check
-    if not await is_admin(message.from_user.id):
-        await message.answer("❌ Access denied. Admin privileges required.")
-        return
 
     try:
         # TODO: Parse command arguments for setting specific limits
@@ -226,19 +195,12 @@ async def command_admin_rate_limit(message: Message) -> None:
 
 
 @router.message(Command("admin_features"))
+@admin_required
 async def command_admin_features(message: Message) -> None:
     """Manage feature flags.
 
-    :param message: Telegram message
+    :param message: Telegram message object
     """
-    if not message.from_user:
-        await message.answer("❌ Error: could not determine user.")
-        return
-
-    # TODO: Implement proper admin check
-    if not await is_admin(message.from_user.id):
-        await message.answer("❌ Access denied. Admin privileges required.")
-        return
 
     try:
         features = SYSTEM_CONFIG["features"]
@@ -274,19 +236,12 @@ async def command_admin_features(message: Message) -> None:
 
 
 @router.message(Command("admin_limits"))
+@admin_required
 async def command_admin_limits(message: Message) -> None:
     """Manage system limits.
 
-    :param message: Telegram message
+    :param message: Telegram message object
     """
-    if not message.from_user:
-        await message.answer("❌ Error: could not determine user.")
-        return
-
-    # TODO: Implement proper admin check
-    if not await is_admin(message.from_user.id):
-        await message.answer("❌ Access denied. Admin privileges required.")
-        return
 
     try:
         limits = SYSTEM_CONFIG["limits"]
@@ -320,19 +275,12 @@ async def command_admin_limits(message: Message) -> None:
 
 
 @router.message(Command("admin_help"))
+@admin_required
 async def command_admin_help(message: Message) -> None:
     """Show all available admin commands.
 
-    :param message: Telegram message
+    :param message: Telegram message object
     """
-    if not message.from_user:
-        await message.answer("❌ Error: could not determine user.")
-        return
-
-    # TODO: Implement proper admin check
-    if not await is_admin(message.from_user.id):
-        await message.answer("❌ Access denied. Admin privileges required.")
-        return
 
     try:
         help_text = dedent("""
