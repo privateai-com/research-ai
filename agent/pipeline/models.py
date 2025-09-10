@@ -122,7 +122,7 @@ class GeneratedQuery(BaseModel):
     """Structured query item produced by the strategy agent."""
 
     query_text: str
-    source: Literal["arxiv", "scholar", "pubmed", "github"]
+    source: Literal["arxiv", "scholar", "github"]
     rationale: Optional[str] = None
     categories: Optional[List[str]] = None
     time_from: Optional[str] = None

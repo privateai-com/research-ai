@@ -2,7 +2,7 @@
 
 This module provides:
 - Query generation (simple heuristic without embeddings)
-- Retrieval from multiple sources (arXiv, Google Scholar, PubMed, GitHub)
+- Retrieval from multiple sources (arXiv, Google Scholar, GitHub) - PubMed temporarily disabled
 
 All functions are synchronous wrappers around sync parsers to keep things
 simple for initial integration. The pipeline orchestrator can run them in
@@ -303,7 +303,10 @@ def collect_candidates(
             elif src == "scholar":
                 page = scholar_search(query=q, max_results=per_query_limit, start=0)
             elif src == "pubmed":
-                page = pubmed_search(query=q, max_results=per_query_limit, start=0)
+                logger.warning(
+                    f"PubMed search temporarily disabled, skipping query: {q}"
+                )
+                return []
             elif src == "github":
                 page = github_search(query=q, max_results=per_query_limit, start=0)
             else:

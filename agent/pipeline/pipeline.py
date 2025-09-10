@@ -92,7 +92,7 @@ async def run_pipeline(task: PipelineTask) -> PipelineOutput:
         analyzed=analyzed,
         generated_queries=[q.query_text for q in generated_queries],
         selected=selected,
-        should_notify=decision.should_notify,
+        should_notify=True,# decision.should_notify,
         report_text=decision.report_text,
     )
 

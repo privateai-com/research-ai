@@ -334,7 +334,7 @@ async def process_completed_task(bot: Bot, task: Any) -> None:
             await send_message_to_target_chat(bot, target_chat_id, str(result), user_id)
         elif result:
             await send_message_to_target_chat(
-                bot, target_chat_id, escape_html(str(result)), user_id
+                bot, target_chat_id, str(result), user_id
             )
 
         await mark_task_sent(task.id)

@@ -14,7 +14,7 @@ from .models import GeneratedQuery, PipelineTask, QueryPlan
 from .utils import retry_async
 
 logger = get_logger(__name__)
-SourceLiteral = Literal["arxiv", "scholar", "pubmed", "github"]
+SourceLiteral = Literal["arxiv", "scholar", "github"]
 
 
 STRATEGY_AGENT = Agent(
@@ -24,13 +24,12 @@ STRATEGY_AGENT = Agent(
         """
         You turn a user task into a compact set of search queries. For EACH query,
         you must also choose the most relevant source among: arXiv, Google Scholar,
-        PubMed, GitHub.
+        GitHub.
 
         - Prefer concise keyword-style queries
         - Avoid redundancy between queries
         - Provide a short rationale per query
         - If source=arXiv, boolean-style with AND/OR/NOT is welcome; optional category constraints may apply
-        - If source=PubMed, prefer biomedical terms and common synonyms
         - If source=GitHub, qualifiers like language:Python, stars:>100 are welcome
         - Keep the set small and high-precision
         - Output JSON matching the provided schema, including the "source" field per query
@@ -58,7 +57,7 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
         "categories": task.categories or [],
         "max_queries": task.max_queries,
         "suggested_queries": task.queries or [],
-        "allowed_sources": ["arxiv", "scholar", "pubmed", "github"],
+        "allowed_sources": ["arxiv", "scholar", "github"],
     }
     prompt = json.dumps(payload)
 
@@ -101,7 +100,7 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
                         "pubmed",
                     ]
                 ):
-                    q.source = "pubmed"
+                    q.source = "scholar"
                 elif any(
                     k in text
                     for k in [
@@ -143,7 +142,7 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
                     "pubmed",
                 ]
             ):
-                return "pubmed"
+                return "scholar"
             if any(
                 k in t
                 for k in [

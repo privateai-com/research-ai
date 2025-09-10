@@ -35,7 +35,9 @@ def _get_openai_client() -> "AsyncOpenAI":
         from openai import AsyncOpenAI
 
         _openai_client = AsyncOpenAI(
-            base_url="https://api.openai.com/v1", api_key=os.getenv("OPENAI_API_KEY")
+            # base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            base_url="https://api.openai.com/v1",
+            api_key=os.getenv("OPENAI_API_KEY"),
         )
     return _openai_client
 
@@ -67,6 +69,18 @@ AGENT_MODEL = property(lambda self: _get_openai_client())
 FALLBACK_MODEL = property(lambda self: _get_open_router())
 
 
+def get_fallback_model() -> "OpenAIChatCompletionsModel":
+    """Get the fallback model for when primary model fails.
+
+    :returns: Configured OpenAIChatCompletionsModel instance using OpenRouter.
+    """
+    from agents import OpenAIChatCompletionsModel
+
+    return OpenAIChatCompletionsModel(
+        model="deepseek/deepseek-chat-v3-0324:free", openai_client=_get_open_router()
+    )
+
+
 def get_agent_model() -> "OpenAIChatCompletionsModel":
     """Get the default chat model for text agents.
 
@@ -80,15 +94,3 @@ def get_agent_model() -> "OpenAIChatCompletionsModel":
             model="gpt-4o-mini", openai_client=_get_openai_client()
         )
     return _agent_model
-
-
-def get_fallback_model() -> "OpenAIChatCompletionsModel":
-    """Get the fallback model for when primary model fails.
-
-    :returns: Configured OpenAIChatCompletionsModel instance using OpenRouter.
-    """
-    from agents import OpenAIChatCompletionsModel
-
-    return OpenAIChatCompletionsModel(
-        model="deepseek/deepseek-chat-v3-0324:free", openai_client=_get_open_router()
-    )
