@@ -1,0 +1,998 @@
+manifest:
+  version: "0.1.2"
+  schema: https://a2as.org/cert/schema
+  subject:
+    name: privateai-com/research-ai
+    source: https://github.com/privateai-com/research-ai
+    branch: master
+    commit: "10c24202"
+    scope: [agent/pipeline/analyze.py, agent/pipeline/decision.py, agent/pipeline/formatting.py, agent/pipeline/models.py,
+      agent/pipeline/strategy.py, agent/pipeline/utils.py, bot/handlers/notifications/service.py, bot/utils.py, shared/db.py,
+      shared/llm.py, shared/logging.py]
+  issued:
+    by: A2AS.org
+    at: '2026-01-26T16:16:01Z'
+  signatures:
+    digest: sha256:6WvvP1_BTnUQFBOXgqkJxHzMRB2UjmPndvpOvu8cZ0Q
+    key: ed25519:XCNKowTGLsP-F-wwoYpjD0gFWuOmkazaaLkhOKu-c5U
+    sig: ed25519:UnsM2ICFLIRrzUUTPqghxroYxzmaMLTRD86CEGvWUIK_EIautiemn3K1B8Q66ONLkxLtCnh3IeVQKMsALFWvAg
+
+agents:
+  agent._get_analyzer:
+    type: factory
+    models: [get_agent_model]
+    params:
+      function: _get_analyzer
+      name: Paper Analyzer
+      output_type: AnalysisAgentOutput
+      instructions: ['You are an expert research assistant. Given a paper''s title and abstract,', 'assess relevance to the
+          user''s task, write a concise summary, and return', a percentage relevance., Return structured JSON.]
+  agent._get_formatter:
+    type: factory
+    models: [get_agent_model]
+    params:
+      function: _get_formatter
+      name: Telegram Formatter
+      output_type: TelegramSummary
+      instructions: [Format a set of analyzed papers into short Telegram HTML. Keep it compact., Output JSON with a single
+          field `html` containing the final HTML.]
+  agent._get_reporter:
+    type: factory
+    models: [get_agent_model]
+    params:
+      function: _get_reporter
+      name: Decision Reporter
+      output_type: DecisionReport
+      instructions: [You are a research assistant. Given a user task and a small set of analyzed papers, 'with summaries and
+          relevance, decide whether there are truly helpful items.', 'If there are, produce a plain text report focused on
+          the user task:', '- Start with one header line: "Findings for your task: <task>"', '- Then list up to 3 items in
+          this structure (each 1–2 lines):', '- <Title>', 'Why useful for this task: <one short sentence tailored to the task>',
+        'Link: <url>', '- Be brief and actionable: 6–12 lines total for the whole report', '- Keep language clear and human-friendly;
+          no HTML/Markdown, plain text only', 'IMPORTANT: Strictly fit within 3000 characters.', 'You must return a JSON object
+          with two fields:', '{"should_notify": boolean, "report_text": string|null}', '- If there is nothing truly helpful,
+          set should_notify=false and report_text=null', '- Otherwise set should_notify=true and report_text to the plain
+          text report']
+  agent._get_simplifier_agent:
+    type: factory
+    models: [get_agent_model]
+    params:
+      function: _get_simplifier_agent
+      name: Notification Simplifier
+      instructions: ['You rewrite technical research notifications into clear, friendly messages for a general audience.',
+        'Goals:', '- Explain the finding in simple words (what was found and why it matters)', '- Avoid jargon and numbers
+          unless essential', '- Keep it short and helpful', 'Output format:', '- 1 short title (no emojis in title)', '- 1–3
+          short lines with the essence and usefulness', '- Final line: a call to action with the link label ''Open on arXiv:
+          <link>''', 'Rules:', '- Use a warm tone, simple vocabulary, and short sentences', '- No markdown or HTML tags, only
+          plain text', '- Max length 600 characters total']
+  agent._get_strategy_agent:
+    type: factory
+    models: [get_agent_model]
+    params:
+      function: _get_strategy_agent
+      name: Query Strategist
+      output_type: QueryPlan
+      instructions: ['You turn a user task into a compact set of search queries. For EACH query,', 'you must also choose the
+          most relevant source among: arXiv, Google Scholar,', 'PubMed, GitHub.', '- Prefer concise keyword-style queries',
+        '- Avoid redundancy between queries', '- Provide a short rationale per query', '- If source=arXiv, boolean-style with
+          AND/OR/NOT is welcome; optional category constraints may apply', '- If source=PubMed, prefer biomedical terms and
+          common synonyms', '- If source=GitHub, qualifiers like language:Python, stars:>100 are welcome', '- Keep the set
+          small and high-precision', '- Output JSON matching the provided schema, including the "source" field per query']
+
+models:
+  get_agent_model:
+    type: function
+    agents: [agent._get_formatter, agent._get_analyzer, agent._get_reporter, agent._get_strategy_agent, agent._get_simplifier_agent]
+
+imports:
+  _broaden_query: search._broaden_query
+  _loguru_logger: loguru.logger
+  add_task_to_queue: operations.add_task_to_queue
+  Agent: agents.Agent
+  AgentStatus: models.AgentStatus
+  AnalysisAgentOutput: models.AnalysisAgentOutput
+  AnalysisInput: models.AnalysisInput
+  AnalysisResult: models.AnalysisResult
+  analyze_candidates: analyze.analyze_candidates
+  and_: sqlalchemy.and_
+  Any: typing.Any
+  ArxivPaper: models.ArxivPaper
+  async_sessionmaker: sqlalchemy.ext.asyncio.async_sessionmaker
+  AsyncAttrs: sqlalchemy.ext.asyncio.AsyncAttrs
+  asyncio: asyncio
+  AsyncOpenAI: openai.AsyncOpenAI
+  AsyncSession: sqlalchemy.ext.asyncio.AsyncSession
+  Awaitable: typing.Awaitable
+  Base: models.Base
+  BaseModel: pydantic.BaseModel
+  BigInteger: sqlalchemy.BigInteger
+  Boolean: sqlalchemy.Boolean
+  Bot: aiogram.Bot
+  Callable: typing.Callable
+  check_new_analyses: service.check_new_analyses
+  check_rate_limit: operations.check_rate_limit
+  check_user_can_create_task: operations.check_user_can_create_task
+  collect_candidates: search.collect_candidates
+  Command: aiogram.filters.Command
+  complete_task_processing: operations.complete_task_processing
+  count_analyses_for_user: operations.count_analyses_for_user
+  count_relevant_analyses_for_user: operations.count_relevant_analyses_for_user
+  create_arxiv_paper: operations.create_arxiv_paper
+  create_async_engine: sqlalchemy.ext.asyncio.create_async_engine
+  create_paper_analysis: operations.create_paper_analysis
+  create_research_topic: operations.create_research_topic
+  create_research_topic_for_user_task: operations.create_research_topic_for_user_task
+  create_search_query: operations.create_search_query
+  create_task: generic_task.create_task
+  create_user_task: operations.create_user_task
+  create_user_task_with_queue: task.create_user_task_with_queue
+  DATABASE_URL: shared.database.connection.DATABASE_URL
+  dataclass: dataclasses.dataclass
+  datetime: datetime.datetime
+  DateTime: sqlalchemy.DateTime
+  deactivate_user_tasks: operations.deactivate_user_tasks
+  deactivate_user_topics: operations.deactivate_user_topics
+  DecisionReport: models.DecisionReport
+  DeclarativeBase: sqlalchemy.orm.DeclarativeBase
+  dedent: textwrap.dedent
+  engine: connection.engine
+  ensure_connection: shared.db.ensure_connection
+  Enum: enum.Enum
+  escape_html: bot.utils.escape_html
+  FastAPI: fastapi.FastAPI
+  Field: pydantic.Field
+  field_validator: pydantic.field_validator
+  Finding: models.Finding
+  Float: sqlalchemy.Float
+  ForeignKey: sqlalchemy.ForeignKey
+  func: sqlalchemy.func
+  generate_query_plan: strategy.generate_query_plan
+  GeneratedQuery: models.GeneratedQuery
+  get_active_topic_by_user: operations.get_active_topic_by_user
+  get_agent_model: shared.llm.get_agent_model
+  get_agent_status: operations.get_agent_status
+  get_analysis_with_entities: shared.db.get_analysis_with_entities
+  get_arxiv_paper_by_arxiv_id: operations.get_arxiv_paper_by_arxiv_id
+  get_logger: shared.logging.get_logger
+  get_most_recent_active_user_task: operations.get_most_recent_active_user_task
+  get_next_queued_task: operations.get_next_queued_task
+  get_next_task_from_queue: operations.get_next_task_from_queue
+  get_or_create_task_statistics: operations.get_or_create_task_statistics
+  get_or_create_user: user.get_or_create_user
+  get_or_create_user_settings: operations.get_or_create_user_settings
+  get_target_chat_id: service.get_target_chat_id
+  get_task: operations.get_task
+  get_topic_by_user_and_text: operations.get_topic_by_user_and_text
+  get_user_settings: shared.db.get_user_settings
+  get_user_task_results: operations.get_user_task_results
+  get_user_tasks: operations.get_user_tasks
+  has_paper_analysis: operations.has_paper_analysis
+  HTTPException: fastapi.HTTPException
+  Index: sqlalchemy.Index
+  init_db: connection.init_db
+  initialize_database: shared.database.init_db
+  Integer: sqlalchemy.Integer
+  json: json
+  link_analysis_to_user_task: operations.link_analysis_to_user_task
+  List: typing.List
+  list_active_queries_for_task: operations.list_active_queries_for_task
+  list_active_topics: operations.list_active_topics
+  list_active_user_tasks: operations.list_active_user_tasks
+  list_completed_tasks_since: operations.list_completed_tasks_since
+  list_new_analyses_since: shared.db.list_new_analyses_since
+  list_pending_tasks: operations.list_pending_tasks
+  list_recent_analyses_for_user: operations.list_recent_analyses_for_user
+  list_user_tasks: operations.list_user_tasks
+  Literal: typing.Literal
+  load_dotenv: dotenv.load_dotenv
+  logging: logging
+  make_decision_and_report: decision.make_decision_and_report
+  Mapped: sqlalchemy.orm.Mapped
+  mapped_column: sqlalchemy.orm.mapped_column
+  mark_analysis_notified: shared.db.mark_analysis_notified
+  mark_analysis_queued: shared.db.mark_analysis_queued
+  mark_task_completed: operations.mark_task_completed
+  mark_task_failed: operations.mark_task_failed
+  mark_task_sent: shared.db.mark_task_sent
+  Message: aiogram.types.Message
+  OpenAIChatCompletionsModel: agents.OpenAIChatCompletionsModel
+  Optional: typing.Optional
+  os: os
+  PaperAnalysis: models.PaperAnalysis
+  PaperCandidate: models.PaperCandidate
+  ParseMode: aiogram.enums.ParseMode
+  Path: pathlib.Path
+  pipeline_mod: agent.pipeline.pipeline
+  PipelineOutput: agent.pipeline.models.PipelineOutput
+  PipelineTask: models.PipelineTask
+  process_completed_task: service.process_completed_task
+  QueryPlan: models.QueryPlan
+  rank_candidates: ranking.rank_candidates
+  RateLimitRecord: models.RateLimitRecord
+  re: re
+  record_finding: operations.record_finding
+  relationship: sqlalchemy.orm.relationship
+  ResearchTopic: models.ResearchTopic
+  reset_daily_counters_if_needed: operations.reset_daily_counters_if_needed
+  retry_async: utils.retry_async
+  Router: aiogram.Router
+  router: handlers.router
+  run_pipeline: agent.pipeline.pipeline.run_pipeline
+  run_pipeline_sync: pipeline.run_pipeline_sync
+  Runner: agents.Runner
+  ScoredAnalysis: models.ScoredAnalysis
+  SearchQuery: models.SearchQuery
+  select: sqlalchemy.select
+  select_top: decision.select_top
+  selectinload: sqlalchemy.orm.selectinload
+  send_analysis_report: service.send_analysis_report
+  send_message_to_target_chat: service.send_message_to_target_chat
+  session_factory: shared.database.SessionLocal
+  SessionLocal: connection.SessionLocal
+  simplify_for_layperson: service.simplify_for_layperson
+  start_task_processing: operations.start_task_processing
+  String: sqlalchemy.String
+  swap_user_active_topics: operations.swap_user_active_topics
+  sys: sys
+  Task: models.Task
+  TaskQueue: models.TaskQueue
+  TaskStatistics: models.TaskStatistics
+  TaskStatus: enums.TaskStatus
+  TelegramSummary: models.TelegramSummary
+  Text: sqlalchemy.Text
+  timedelta: datetime.timedelta
+  to_telegram_html: formatting.to_telegram_html
+  traceback: traceback
+  Tuple: typing.Tuple
+  TYPE_CHECKING: typing.TYPE_CHECKING
+  TypeVar: typing.TypeVar
+  update_agent_status: operations.update_agent_status
+  update_queue_positions: operations.update_queue_positions
+  update_search_query_stats: operations.update_search_query_stats
+  update_task_statistics: task_statistics.update_task_statistics
+  update_user_settings: operations.update_user_settings
+  update_user_task_status: operations.update_user_task_status
+  update_user_task_status_for_user: operations.update_user_task_status_for_user
+  upgrade_user_plan: operations.upgrade_user_plan
+  User: models.User
+  UserPlan: enums.UserPlan
+  UserSettings: models.UserSettings
+  UserTask: models.UserTask
+
+functions:
+  _build_pipeline_task:
+    type: sync
+    module: agent.manager
+    params:
+      returns: PipelineTask
+  _build_prompt:
+    type: sync
+    module: agent.pipeline.analyze
+    args: [task_query, candidate, snippets]
+    params:
+      returns: str
+  _compact_report_text:
+    type: sync
+    module: agent.pipeline.decision
+    args: [text, max_chars]
+    params:
+      returns: Optional[str]
+  _configure_loguru:
+    type: sync
+    module: shared.logging
+    args: [console_level]
+    params:
+      returns: None
+  _fallback_format:
+    type: sync
+    module: agent.pipeline.formatting
+    args: [output]
+    params:
+      returns: str
+  _get_analyzer:
+    type: sync
+    module: agent.pipeline.analyze
+  _get_formatter:
+    type: sync
+    module: agent.pipeline.formatting
+  _get_ollama_client:
+    type: sync
+    module: shared.llm
+    params:
+      returns: AsyncOpenAI
+  _get_open_router:
+    type: sync
+    module: shared.llm
+    params:
+      returns: AsyncOpenAI
+  _get_openai_client:
+    type: sync
+    module: shared.llm
+    params:
+      returns: AsyncOpenAI
+  _get_reporter:
+    type: sync
+    module: agent.pipeline.decision
+  _get_simplifier_agent:
+    type: sync
+    module: bot.handlers.notifications.service
+  _get_strategy_agent:
+    type: sync
+    module: agent.pipeline.strategy
+  _heuristic_relevance:
+    type: sync
+    module: agent.pipeline.analyze
+    args: [task_query, candidate]
+    params:
+      returns: float
+  _infer_source:
+    type: sync
+    module: agent.pipeline.strategy
+    args: [text]
+    params:
+      returns: SourceLiteral
+  _notify_cycle_limit_reached:
+    type: async
+    module: shared.database.operations.integration
+    args: [user_task, has_results]
+    params:
+      returns: None
+  _notify_report:
+    type: async
+    module: agent.manager
+    args: [user_id, report_text]
+    params:
+      returns: None
+  _persist_selected:
+    type: async
+    module: agent.manager
+    args: [output]
+    params:
+      returns: List[Tuple]
+  _process_user_task:
+    type: async
+    module: agent.manager
+    args: [rt, user_task]
+    params:
+      returns: None
+  _read_config:
+    type: sync
+    module: agent.manager
+    params:
+      returns: RuntimeConfig
+  _selected_to_summary:
+    type: sync
+    module: api.app
+    args: [items]
+    params:
+      returns: List[PaperSummary]
+  _split_message:
+    type: sync
+    module: bot.handlers.notifications.service
+    args: [msg, max_len]
+    params:
+      returns: list[str]
+  _to_paper_summary:
+    type: sync
+    module: api.app
+    args: [item]
+    params:
+      returns: PaperSummary
+  _truncate_summary:
+    type: sync
+    module: agent.pipeline.analyze
+    args: [text, max_chars]
+    params:
+      returns: str
+  _why_for_task:
+    type: sync
+    module: agent.pipeline.decision
+    args: [task_query, summary, max_len]
+    params:
+      returns: str
+  add_task_to_queue:
+    type: async
+    module: shared.database.operations.queue
+    args: [task]
+    params:
+      returns: TaskQueue
+  analyze_candidates:
+    type: async
+    module: agent.pipeline.analyze
+    params:
+      returns: List[AnalysisResult]
+  check_new_analyses:
+    type: async
+    module: bot.handlers.notifications.service
+    args: [bot]
+    params:
+      returns: None
+  check_rate_limit:
+    type: async
+    module: shared.database.operations.rate_limit
+    args: [user_id, action_type]
+    params:
+      returns: Tuple
+  check_user_can_create_task:
+    type: async
+    module: shared.database.operations.user
+    args: [user]
+    params:
+      returns: Tuple
+  command_set_group_handler:
+    type: async
+    module: bot.handlers.notifications.handlers
+    args: [message]
+    params:
+      returns: None
+  command_set_notification_handler:
+    type: async
+    module: bot.handlers.notifications.handlers
+    args: [message]
+    params:
+      returns: None
+  command_unset_group_handler:
+    type: async
+    module: bot.handlers.notifications.handlers
+    args: [message]
+    params:
+      returns: None
+  complete_task_processing:
+    type: async
+    module: shared.database.operations.integration
+    args: [task_id, success, error_message]
+    params:
+      returns: bool
+  count_analyses_for_user:
+    type: async
+    module: shared.database.operations.agent
+    args: [user_id]
+    params:
+      returns: int
+  count_relevant_analyses_for_user:
+    type: async
+    module: shared.database.operations.agent
+    args: [user_id, min_overall]
+    params:
+      returns: int
+  create_arxiv_paper:
+    type: async
+    module: shared.database.operations.paper
+    args: [data]
+    params:
+      returns: ArxivPaper
+  create_paper_analysis:
+    type: async
+    module: shared.database.operations.paper
+    params:
+      returns: PaperAnalysis
+  create_research_topic:
+    type: async
+    module: shared.database.operations.legacy
+    args: [user_id, target_topic, search_area]
+    params:
+      returns: ResearchTopic
+  create_research_topic_for_user_task:
+    type: async
+    module: shared.database.operations.integration
+    args: [user_task]
+    params:
+      returns: Optional[ResearchTopic]
+  create_search_query:
+    type: async
+    module: shared.database.operations.search
+    params:
+      returns: SearchQuery
+  create_task:
+    type: async
+    module: shared.database.operations.generic_task
+    args: [task_type, data, status, result]
+    params:
+      returns: Task
+  create_user_task:
+    type: async
+    module: shared.database.operations.integration
+    args: [user_id, description]
+    params:
+      returns: UserTask
+  create_user_task_with_queue:
+    type: async
+    module: shared.database.operations.task
+    args: [user, description]
+    params:
+      returns: Tuple
+  cut_text:
+    type: sync
+    module: bot.utils
+    args: [text, max_length]
+    params:
+      returns: str
+  deactivate_user_tasks:
+    type: async
+    module: shared.database.operations.task
+    args: [user_id]
+    params:
+      returns: None
+  deactivate_user_topics:
+    type: async
+    module: shared.database.operations.legacy
+    args: [user_id]
+    params:
+      returns: None
+  ensure_connection:
+    type: sync
+    module: shared.database.connection
+    params:
+      returns: None
+  escape_html:
+    type: sync
+    module: bot.utils
+    args: [text]
+    params:
+      returns: str
+  generate_query_plan:
+    type: async
+    module: agent.pipeline.strategy
+    args: [task]
+    params:
+      returns: QueryPlan
+  get_active_topic_by_user:
+    type: async
+    module: shared.database.operations.legacy
+    args: [user_id]
+    params:
+      returns: Optional[ResearchTopic]
+  get_agent_model:
+    type: sync
+    module: shared.llm
+    params:
+      returns: OpenAIChatCompletionsModel
+  get_agent_status:
+    type: async
+    module: shared.database.operations.agent
+    args: [agent_id]
+    params:
+      returns: Optional[AgentStatus]
+  get_analysis_with_entities:
+    type: async
+    module: shared.database.operations.paper
+    args: [analysis_id]
+    params:
+      returns: Optional[Tuple]
+  get_arxiv_paper_by_arxiv_id:
+    type: async
+    module: shared.database.operations.paper
+    args: [arxiv_id]
+    params:
+      returns: Optional[ArxivPaper]
+  get_logger:
+    type: sync
+    module: shared.logging
+    args: [name]
+  get_most_recent_active_user_task:
+    type: async
+    module: shared.database.operations.task
+    params:
+      returns: Optional[UserTask]
+  get_multimodal_model:
+    type: sync
+    module: shared.llm
+    params:
+      returns: OpenAIChatCompletionsModel
+  get_next_queued_task:
+    type: async
+    module: shared.database.operations.integration
+    params:
+      returns: Optional[UserTask]
+  get_next_task_from_queue:
+    type: async
+    module: shared.database.operations.queue
+    params:
+      returns: Optional[UserTask]
+  get_or_create_task_statistics:
+    type: async
+    module: shared.database.operations.task_statistics
+    params:
+      returns: TaskStatistics
+  get_or_create_user:
+    type: async
+    module: shared.database.operations.user
+    args: [telegram_id, username, first_name, last_name]
+    params:
+      returns: User
+  get_or_create_user_settings:
+    type: async
+    module: shared.database.operations.legacy
+    args: [user_id]
+    params:
+      returns: UserSettings
+  get_target_chat_id:
+    type: async
+    module: bot.handlers.notifications.service
+    args: [user_id]
+    params:
+      returns: int
+  get_task:
+    type: async
+    module: shared.database.operations.generic_task
+    args: [task_id]
+    params:
+      returns: Optional[Task]
+  get_topic_by_user_and_text:
+    type: async
+    module: shared.database.operations.legacy
+    args: [user_id, target_topic, search_area]
+    params:
+      returns: Optional[ResearchTopic]
+  get_user_settings:
+    type: async
+    module: shared.database.operations.legacy
+    args: [user_id]
+    params:
+      returns: Optional[UserSettings]
+  get_user_task_results:
+    type: async
+    module: shared.database.operations.integration
+    args: [task_id]
+    params:
+      returns: List[Tuple]
+  get_user_tasks:
+    type: async
+    module: shared.database.operations.task
+    args: [user_id]
+    params:
+      returns: List[UserTask]
+  has_paper_analysis:
+    type: async
+    module: shared.database.operations.paper
+    args: [paper_id, topic_id]
+    params:
+      returns: bool
+  health:
+    type: async
+    module: api.app
+    params:
+      returns: dict
+  init_db:
+    type: async
+    module: shared.database.connection
+    params:
+      returns: None
+  link_analysis_to_user_task:
+    type: async
+    module: shared.database.operations.integration
+    args: [analysis, user_task]
+    params:
+      returns: None
+  list_active_queries_for_task:
+    type: async
+    module: shared.database.operations.search
+    args: [task_id]
+    params:
+      returns: List[SearchQuery]
+  list_active_topics:
+    type: async
+    module: shared.database.operations.legacy
+    params:
+      returns: List[ResearchTopic]
+  list_active_user_tasks:
+    type: async
+    module: shared.database.operations.task
+    params:
+      returns: List[UserTask]
+  list_completed_tasks_since:
+    type: async
+    module: shared.database.operations.generic_task
+    args: [last_id]
+    params:
+      returns: List[Task]
+  list_new_analyses_since:
+    type: async
+    module: shared.database.operations.paper
+    args: [last_id, min_overall]
+    params:
+      returns: List[PaperAnalysis]
+  list_pending_tasks:
+    type: async
+    module: shared.database.operations.generic_task
+    params:
+      returns: List[Task]
+  list_recent_analyses_for_user:
+    type: async
+    module: shared.database.operations.agent
+    args: [user_id, limit]
+    params:
+      returns: List[Tuple]
+  list_user_tasks:
+    type: async
+    module: shared.database.operations.task
+    args: [user_id]
+    params:
+      returns: List[UserTask]
+  main:
+    type: async
+    module: agent.manager
+    params:
+      returns: None
+  make_decision_and_report:
+    type: async
+    module: agent.pipeline.decision
+    args: [task, selected]
+    params:
+      returns: DecisionReport
+  mark_analysis_notified:
+    type: async
+    module: shared.database.operations.paper
+    args: [analysis_id]
+    params:
+      returns: None
+  mark_analysis_queued:
+    type: async
+    module: shared.database.operations.paper
+    args: [analysis_id]
+    params:
+      returns: None
+  mark_task_completed:
+    type: async
+    module: shared.database.operations.generic_task
+    args: [task_id, result_text]
+    params:
+      returns: None
+  mark_task_failed:
+    type: async
+    module: shared.database.operations.generic_task
+    args: [task_id, error_text]
+    params:
+      returns: None
+  mark_task_sent:
+    type: async
+    module: shared.database.operations.generic_task
+    args: [task_id]
+    params:
+      returns: None
+  process_completed_task:
+    type: async
+    module: bot.handlers.notifications.service
+    args: [bot, task]
+    params:
+      returns: None
+  query_must_not_be_empty:
+    type: sync
+    module: agent.pipeline.models
+    args: [cls, value]
+    params:
+      returns: str
+  record_finding:
+    type: async
+    module: shared.database.operations.search
+    args: [task_id, paper_id, relevance, summary]
+    params:
+      returns: Finding
+  remove_html_tags:
+    type: sync
+    module: bot.utils
+    args: [text]
+    params:
+      returns: str
+  reset_daily_counters_if_needed:
+    type: async
+    module: shared.database.operations.user
+    args: [user]
+    params:
+      returns: User
+  retry_async:
+    type: async
+    module: agent.pipeline.utils
+    args: [func]
+    params:
+      returns: T
+  run:
+    type: async
+    module: api.app
+    args: [task]
+    params:
+      returns: RunResponse
+  run_pipeline:
+    type: async
+    module: agent.pipeline.pipeline
+    args: [task]
+    params:
+      returns: PipelineOutput
+  run_pipeline_sync:
+    type: sync
+    module: agent.pipeline.pipeline
+    args: [task]
+    params:
+      returns: PipelineOutput
+  score_result:
+    type: sync
+    module: agent.pipeline.decision
+    args: [task, result]
+    params:
+      returns: float
+  select_top:
+    type: sync
+    module: agent.pipeline.decision
+    args: [task, analyzed]
+    params:
+      returns: List[ScoredAnalysis]
+  send_analysis_report:
+    type: async
+    module: bot.handlers.notifications.service
+    args: [bot, user_id, analysis_id]
+    params:
+      returns: None
+  send_message_to_target_chat:
+    type: async
+    module: bot.handlers.notifications.service
+    args: [bot, chat_id, text, user_id]
+    params:
+      returns: None
+  setup_logger:
+    type: sync
+    module: shared.logging
+    args: [name, log_level]
+  simplify_for_layperson:
+    type: async
+    module: bot.handlers.notifications.service
+    args: [text]
+    params:
+      returns: str
+  start_task_processing:
+    type: async
+    module: shared.database.operations.integration
+    args: [task_id]
+    params:
+      returns: bool
+  swap_user_active_topics:
+    type: async
+    module: shared.database.operations.agent
+    args: [user_id]
+    params:
+      returns: Optional[ResearchTopic]
+  to_telegram_html:
+    type: sync
+    module: agent.pipeline.formatting
+    args: [output]
+    params:
+      returns: str
+  to_telegram_html_agent:
+    type: async
+    module: agent.pipeline.formatting
+    args: [output]
+    params:
+      returns: str
+  toks:
+    type: sync
+    module: agent.pipeline.decision
+    args: [s]
+    params:
+      returns: List[str]
+  update_agent_status:
+    type: async
+    module: shared.database.operations.agent
+    params:
+      returns: None
+  update_queue_positions:
+    type: async
+    module: shared.database.operations.queue
+    params:
+      returns: None
+  update_search_query_stats:
+    type: async
+    module: shared.database.operations.search
+    args: [query_id, success_increment]
+    params:
+      returns: None
+  update_task_statistics:
+    type: async
+    module: shared.database.operations.task_statistics
+    args: [processing_time_seconds, success]
+    params:
+      returns: None
+  update_user_settings:
+    type: async
+    module: shared.database.operations.legacy
+    args: [user_id]
+    params:
+      returns: None
+  update_user_task_status:
+    type: async
+    module: shared.database.operations.task
+    args: [task_id, status]
+    params:
+      returns: None
+  update_user_task_status_for_user:
+    type: async
+    module: shared.database.operations.task
+    args: [user_id, task_id, status]
+    params:
+      returns: bool
+  upgrade_user_plan:
+    type: async
+    module: shared.database.operations.user
+    args: [telegram_id, plan, expires_at]
+    params:
+      returns: bool
+
+variables:
+  AGENT_DRY_RUN:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent.manager]
+  AGENT_ID:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent.manager]
+  AGENT_POLL_SECONDS:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent.manager]
+  AGENT_TEST_USER_ID:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent.manager]
+  DATABASE_PATH:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [shared.database.connection]
+  OPENAI_API_KEY:
+    type: env
+    params:
+      caller: [os.getenv, AsyncOpenAI]
+      path: [shared.llm, agent.pipeline.analyze]
+  OPENROUTER_API_KEY:
+    type: env
+    params:
+      caller: [os.getenv, AsyncOpenAI]
+      path: [shared.llm, agent.pipeline.analyze]
+  PIPELINE_USE_AGENTS_ANALYZE:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent.pipeline.analyze]
+  PIPELINE_USE_AGENTS_STRATEGY:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent.pipeline.strategy]
+
+files:
+  logs_dir:
+    type: literal
+    actions: [read, write]
+    params:
+      caller: [Path(logs), logs_dir.mkdir]
+
+networks:
+  api.openai.com:
+    type: api
+    actions: [GET]
+    urls: [/v1]
+    protocols: [https]
+    ports: ["443"]
+    params:
+      caller: [_get_openai_client]
+      links: [base_url]
+  localhost:
+    type: api
+    actions: [GET]
+    urls: [/v1]
+    protocols: [http]
+    ports: ["11434"]
+    params:
+      caller: [_get_ollama_client]
+      links: [base_url]
+  openrouter.ai:
+    type: api
+    actions: [GET]
+    urls: [/api/v1]
+    protocols: [https]
+    ports: ["443"]
+    params:
+      caller: [_get_open_router]
+      links: [base_url]
