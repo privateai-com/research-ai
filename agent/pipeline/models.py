@@ -5,7 +5,7 @@ across the pipeline: input tasks, intermediate candidates, and outputs.
 """
 
 from datetime import datetime
-from typing import List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -48,6 +48,20 @@ class PipelineTask(BaseModel):
             " sources for each query."
         ),
     )
+    use_semantic_rerank: bool = Field(
+        default=False,
+        description="If True, rerank BM25 results using OpenAI embedding cosine similarity.",
+    )
+    build_graph: bool = Field(
+        default=False,
+        description="If True, build a knowledge graph from seed_paper_url after the pipeline.",
+    )
+    seed_paper_url: Optional[str] = Field(
+        default=None,
+        description="URL or DOI of the seed paper for graph construction.",
+    )
+    graph_depth: int = Field(default=1, ge=1, le=2)
+    graph_max_papers: int = Field(default=30, ge=1, le=100)
 
     @field_validator("query")
     @classmethod
@@ -116,13 +130,17 @@ class PipelineOutput(BaseModel):
     selected: List["ScoredAnalysis"] = Field(default_factory=list)
     should_notify: bool = False
     report_text: Optional[str] = None
+    graph: Optional[Any] = Field(
+        default=None,
+        description="KnowledgeGraph instance when build_graph=True, else None.",
+    )
 
 
 class GeneratedQuery(BaseModel):
     """Structured query item produced by the strategy agent."""
 
     query_text: str
-    source: Literal["arxiv", "scholar", "pubmed", "github"]
+    source: Literal["arxiv", "scholar", "pubmed", "github", "semantic_scholar"]
     rationale: Optional[str] = None
     categories: Optional[List[str]] = None
     time_from: Optional[str] = None

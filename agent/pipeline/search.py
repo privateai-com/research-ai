@@ -242,6 +242,27 @@ def collect_candidates(
             page = pubmed_search(query=q, max_results=per_query_limit, start=0)
         elif src == "github":
             page = github_search(query=q, max_results=per_query_limit, start=0)
+        elif src == "semantic_scholar":
+            from agent.browsing.manual.sources.semantic_scholar import SemanticScholarBrowser
+            browser = SemanticScholarBrowser()
+            ss_items = browser.search(q, max_results=per_query_limit)
+            page = [
+                PaperCandidate(
+                    arxiv_id=it.item_id or it.url,
+                    title=it.title,
+                    summary=it.snippet or "",
+                    categories=[],
+                    published=None,
+                    updated=None,
+                    pdf_url=None,
+                    abs_url=it.url,
+                    journal_ref=None,
+                    doi=(it.extra or {}).get("doi"),
+                    comment=None,
+                    primary_category=None,
+                )
+                for it in ss_items
+            ]
         else:
             logger.warning(f"Unknown source '{src}', skipping query")
             continue

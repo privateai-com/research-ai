@@ -1,5 +1,5 @@
 import asyncio
-from typing import List
+from typing import List, Optional
 
 from shared.logging import get_logger
 
@@ -71,6 +71,15 @@ async def run_pipeline(task: PipelineTask) -> PipelineOutput:
     )
     logger.info(f"Ranked and kept top {len(ranked)} candidates")
 
+    # Optional semantic reranking
+    if task.use_semantic_rerank and ranked:
+        from .semantic_rerank import semantic_rerank
+        logger.info("Stage: semantic rerank -> embedding cosine similarity")
+        ranked = semantic_rerank(
+            query=task.query, candidates=ranked, top_k=task.bm25_top_k
+        )
+        logger.info(f"Semantic rerank kept top {len(ranked)} candidates")
+
     # Build analysis inputs (context reduction: abstract only for now)
     analysis_inputs: List[AnalysisInput] = [
         AnalysisInput(candidate=c, snippets=[]) for c in ranked[: task.max_analyze]
@@ -87,6 +96,25 @@ async def run_pipeline(task: PipelineTask) -> PipelineOutput:
     selected = select_top(task, analyzed)
     decision = await make_decision_and_report(task, selected)
 
+    # Optional knowledge graph construction
+    graph = None
+    if task.build_graph and task.seed_paper_url:
+        from agent.graph.builder import build_graph_from_seed
+        logger.info("Stage: graph builder -> knowledge graph")
+        try:
+            is_url = task.seed_paper_url.startswith("http")
+            graph = await build_graph_from_seed(
+                seed_identifier=task.seed_paper_url,
+                depth=task.graph_depth,
+                max_papers=task.graph_max_papers,
+                is_url=is_url,
+            )
+            logger.info(
+                f"Graph built: {len(graph.nodes)} nodes, {len(graph.edges)} edges"
+            )
+        except Exception as e:
+            logger.error(f"Graph build failed: {e}")
+
     return PipelineOutput(
         task=task,
         analyzed=analyzed,
@@ -94,6 +122,7 @@ async def run_pipeline(task: PipelineTask) -> PipelineOutput:
         selected=selected,
         should_notify=decision.should_notify,
         report_text=decision.report_text,
+        graph=graph,
     )
 
 
