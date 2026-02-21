@@ -39,7 +39,6 @@ async def update_task_statistics(
     async with SessionLocal() as session:
         stats = await get_or_create_task_statistics()
 
-        # Update counts
         if success:
             stats.total_tasks_processed += 1
             stats.recent_completed_tasks += 1
@@ -47,13 +46,11 @@ async def update_task_statistics(
         else:
             stats.recent_failed_tasks += 1
 
-        # Recalculate averages
         if stats.total_tasks_processed > 0:
             stats.avg_processing_time = (
                 stats.total_processing_time_seconds / stats.total_tasks_processed
             )
 
-        # Update min/max times
         if success:
             stats.min_processing_time = min(
                 stats.min_processing_time, processing_time_seconds
@@ -62,7 +59,6 @@ async def update_task_statistics(
                 stats.max_processing_time, processing_time_seconds
             )
 
-            # Simple median estimation (can be improved with more sophisticated approach)
             recent_times = [
                 stats.min_processing_time,
                 processing_time_seconds,
@@ -70,13 +66,11 @@ async def update_task_statistics(
             ]
             stats.median_processing_time = sorted(recent_times)[1]
 
-            # Update recent average
             if stats.recent_completed_tasks > 0:
                 stats.recent_avg_time = (
                     stats.recent_avg_time + processing_time_seconds
                 ) / 2
 
-        # Update queue length
         queue_count = await session.execute(select(func.count(TaskQueue.id)))
         stats.current_queue_length = queue_count.scalar_one() or 0
 

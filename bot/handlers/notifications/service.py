@@ -7,7 +7,9 @@ from aiogram import Bot
 from aiogram.enums import ParseMode
 
 from shared.llm import get_agent_model
-from bot.utils import escape_html
+
+# TODO: Update import path after utils reorganization
+from bot.handlers.utils.utils import escape_html
 from shared.db import (
     ensure_connection,
     get_analysis_with_entities,
@@ -22,6 +24,39 @@ from shared.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _validate_notification_has_links(
+    text: str, expected_link: str | None = None
+) -> bool:
+    """Validate that notification text contains source links.
+
+    :param text: Notification text to validate.
+    :param expected_link: Optional expected link that should be present.
+    :returns: True if text contains valid links, False otherwise.
+    """
+    import re
+
+    # Check for common link patterns
+    link_patterns = [
+        r"https?://arxiv\.org/[^\s]+",  # arXiv links
+        r"https?://[^\s]+",  # General HTTP links
+        r"Open on arXiv:",  # arXiv call-to-action
+        r"📎\s*https?://",  # Link with clip emoji
+        r"Links?:\s*https?://",  # Links section
+    ]
+
+    has_link = any(re.search(pattern, text, re.IGNORECASE) for pattern in link_patterns)
+
+    if expected_link and expected_link not in text:
+        logger.warning(f"Expected link {expected_link} not found in notification text")
+        return False
+
+    if not has_link:
+        logger.warning("No source links found in notification text")
+        return False
+
+    return True
+
+
 async def get_target_chat_id(user_id: int) -> int:
     """Return group chat ID if configured, otherwise personal user ID.
 
@@ -32,6 +67,7 @@ async def get_target_chat_id(user_id: int) -> int:
         ensure_connection()
         settings = await get_user_settings(user_id)
         current_group = getattr(settings, "group_chat_id", None) if settings else None
+        # TODO: Cache user settings to reduce database queries
         logger.info(
             f"User {user_id} settings: group_chat_id={current_group if current_group is not None else 'None'}"
         )
@@ -51,11 +87,12 @@ async def get_target_chat_id(user_id: int) -> int:
 def _get_simplifier_agent():
     """Lazy initialization of the simplifier agent."""
     from agents import Agent
+
     return Agent(
         name="Notification Simplifier",
         model=get_agent_model(),
         instructions=dedent(
-        """
+            """
         You rewrite technical research notifications into clear, friendly messages for a general audience.
 
         Goals:
@@ -68,10 +105,16 @@ def _get_simplifier_agent():
         - 1–3 short lines with the essence and usefulness
         - Final line: a call to action with the link label 'Open on arXiv: <link>'
 
+        CRITICAL REQUIREMENT:
+        - ALWAYS preserve the original arXiv link exactly as provided
+        - The link MUST appear in the output unchanged
+        - Include the full URL starting with 'http' or 'https'
+
         Rules:
         - Use a warm tone, simple vocabulary, and short sentences
         - No markdown or HTML tags, only plain text
         - Max length 600 characters total
+        - NEVER remove, shorten, or modify the source link
         """
         ),
     )
@@ -83,14 +126,33 @@ async def simplify_for_layperson(text: str) -> str:
     :param text: Input facts block.
     :returns: Simplified text without markup, friendly to non-technical readers.
     """
+    import re
+
+    # Extract the original link to ensure it's preserved
+    link_match = re.search(r"Link: (https?://[^\s]+)", text)
+    original_link = link_match.group(1) if link_match else None
+
     try:
         from agents import Runner
+
         result: Any = await Runner.run(_get_simplifier_agent(), text)
         simplified = (
             str(getattr(result, "final_output", "")).strip() or str(result).strip()
         )
+        # TODO: Implement more sophisticated HTML/markdown cleanup
         # Basic post-clean: remove any stray tags just in case
-        return simplified.replace("<", "").replace(">", "")
+        simplified = simplified.replace("<", "").replace(">", "")
+
+        # Ensure the original link is present in the simplified text
+        if original_link and original_link not in simplified:
+            logger.warning(
+                f"Original link missing from simplified text, adding it back: {original_link}"
+            )
+            if not simplified.endswith("\n"):
+                simplified += "\n"
+            simplified += f"Open on arXiv: {original_link}"
+
+        return simplified
     except Exception as error:
         logger.error(f"Notification simplification failed: {error}")
         return text
@@ -108,6 +170,7 @@ async def send_message_to_target_chat(
     :returns: ``None``.
     """
 
+    # TODO: Implement smart message splitting that preserves HTML tags and formatting
     def _split_message(msg: str, max_len: int = 4000) -> list[str]:
         if len(msg) <= max_len:
             return [msg]
@@ -197,6 +260,13 @@ async def send_analysis_report(bot: Bot, user_id: int, analysis_id: int) -> None
 
         simple_text = await simplify_for_layperson(facts)
 
+        # Validate that the simplified text contains the source link
+        if not _validate_notification_has_links(simple_text, paper.abs_url):
+            logger.error(f"Notification validation failed for analysis {analysis_id}")
+            # Add the link manually if missing
+            if paper.abs_url and paper.abs_url not in simple_text:
+                simple_text += f"\n\nOpen on arXiv: {paper.abs_url}"
+
         target_chat_id = await get_target_chat_id(user_id)
         await send_message_to_target_chat(
             bot,
@@ -264,7 +334,7 @@ async def process_completed_task(bot: Bot, task: Any) -> None:
             await send_message_to_target_chat(bot, target_chat_id, str(result), user_id)
         elif result:
             await send_message_to_target_chat(
-                bot, target_chat_id, escape_html(str(result)), user_id
+                bot, target_chat_id, str(result), user_id
             )
 
         await mark_task_sent(task.id)

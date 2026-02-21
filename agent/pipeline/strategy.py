@@ -7,38 +7,36 @@ import os
 from textwrap import dedent
 from typing import List, Literal
 
+from agents import Agent, Runner
 from shared.llm import get_agent_model
 from shared.logging import get_logger
 from .models import GeneratedQuery, PipelineTask, QueryPlan
 from .utils import retry_async
 
 logger = get_logger(__name__)
-SourceLiteral = Literal["arxiv", "scholar", "pubmed", "github"]
+SourceLiteral = Literal["arxiv", "scholar", "github"]
 
-def _get_strategy_agent():
-    """Lazy initialization of the strategy agent."""
-    from agents import Agent
-    return Agent(
-        name="Query Strategist",
-        model=get_agent_model(),
-        instructions=dedent(
-            """
-            You turn a user task into a compact set of search queries. For EACH query,
-            you must also choose the most relevant source among: arXiv, Google Scholar,
-            PubMed, GitHub.
 
-            - Prefer concise keyword-style queries
-            - Avoid redundancy between queries
-            - Provide a short rationale per query
-            - If source=arXiv, boolean-style with AND/OR/NOT is welcome; optional category constraints may apply
-            - If source=PubMed, prefer biomedical terms and common synonyms
-            - If source=GitHub, qualifiers like language:Python, stars:>100 are welcome
-            - Keep the set small and high-precision
-            - Output JSON matching the provided schema, including the "source" field per query
-            """
-        ),
-        output_type=QueryPlan,
-    )
+STRATEGY_AGENT = Agent(
+    name="Query Strategist",
+    model=get_agent_model(),
+    instructions=dedent(
+        """
+        You turn a user task into a compact set of search queries. For EACH query,
+        you must also choose the most relevant source among: arXiv, Google Scholar,
+        GitHub.
+
+        - Prefer concise keyword-style queries
+        - Avoid redundancy between queries
+        - Provide a short rationale per query
+        - If source=arXiv, boolean-style with AND/OR/NOT is welcome; optional category constraints may apply
+        - If source=GitHub, qualifiers like language:Python, stars:>100 are welcome
+        - Keep the set small and high-precision
+        - Output JSON matching the provided schema, including the "source" field per query
+        """
+    ),
+    output_type=QueryPlan,
+)
 
 
 async def generate_query_plan(task: PipelineTask) -> QueryPlan:
@@ -59,7 +57,7 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
         "categories": task.categories or [],
         "max_queries": task.max_queries,
         "suggested_queries": task.queries or [],
-        "allowed_sources": ["arxiv", "scholar", "pubmed", "github"],
+        "allowed_sources": ["arxiv", "scholar", "github"],
     }
     prompt = json.dumps(payload)
 
@@ -75,9 +73,12 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
         logger.info("Strategy agent disabled via env; using heuristic queries")
         raise Exception("strategy_agent_disabled")
     try:
+
+        def _run_strategy_agent():
+            return Runner.run(STRATEGY_AGENT, prompt)
+
         logger.info("Making a call to the strategy agent...")
-        from agents import Runner
-        result = await retry_async(lambda: Runner.run(_get_strategy_agent(), prompt))
+        result = await retry_async(_run_strategy_agent, attempts=2, base_delay=0.5)
         plan_obj: QueryPlan = result.final_output
         num_q = len(plan_obj.queries) if getattr(plan_obj, "queries", None) else 0
         logger.info(f"Strategy agent produced {num_q} queries")
@@ -99,7 +100,7 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
                         "pubmed",
                     ]
                 ):
-                    q.source = "pubmed"
+                    q.source = "scholar"
                 elif any(
                     k in text
                     for k in [
@@ -141,7 +142,7 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
                     "pubmed",
                 ]
             ):
-                return "pubmed"
+                return "scholar"
             if any(
                 k in t
                 for k in [

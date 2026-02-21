@@ -1,5 +1,6 @@
 """Task management operations."""
 
+import logging
 from datetime import datetime
 from typing import List, Optional, Tuple
 
@@ -10,6 +11,8 @@ from ..connection import SessionLocal
 from ..models import User, UserTask, TaskQueue
 from ..enums import UserPlan, TaskStatus
 from .queue import add_task_to_queue
+
+logger = logging.getLogger(__name__)
 
 
 async def create_user_task_with_queue(
@@ -22,10 +25,8 @@ async def create_user_task_with_queue(
     :returns: Tuple of (UserTask, TaskQueue)
     """
     async with SessionLocal() as session:
-        # Determine max cycles based on plan
         max_cycles = 100 if user.plan == UserPlan.PREMIUM else 5
 
-        # Create task
         task = UserTask(
             user_id=user.id,
             title=description[:100] + "..." if len(description) > 100 else description,
@@ -38,10 +39,8 @@ async def create_user_task_with_queue(
         await session.commit()
         await session.refresh(task)
 
-        # Add to queue
         queue_entry = await add_task_to_queue(task)
 
-        # Increment user's daily counter
         user.daily_tasks_created += 1
         user.updated_at = datetime.now()
         await session.merge(user)
@@ -59,7 +58,7 @@ async def get_user_tasks(user_id: int) -> List[UserTask]:
     async with SessionLocal() as session:
         result = await session.execute(
             select(UserTask)
-            .options(selectinload(UserTask.queue_entry))  # Eager load queue_entry
+            .options(selectinload(UserTask.queue_entry))
             .where(UserTask.user_id == user_id)
             .order_by(UserTask.created_at.desc())
         )
@@ -161,3 +160,241 @@ async def list_user_tasks(user_id: int) -> List[UserTask]:
             .order_by(UserTask.created_at.desc())
         )
         return list(result.scalars().all())
+
+
+async def cancel_user_task(user_id: int, task_id: int) -> bool:
+    """Cancel a user task if it belongs to the user and is in cancellable state.
+
+    :param user_id: Internal user ID
+    :param task_id: Task ID to cancel
+    :returns: True if cancelled successfully, False otherwise
+    """
+    try:
+        async with SessionLocal() as session:
+            stmt = (
+                select(UserTask)
+                .options(selectinload(UserTask.queue_entry))
+                .where(UserTask.id == task_id)
+            )
+            result = await session.execute(stmt)
+            task = result.scalar_one_or_none()
+
+            if task is None or task.user_id != user_id:
+                return False
+
+            if task.status in [
+                TaskStatus.COMPLETED,
+                TaskStatus.FAILED,
+                TaskStatus.CANCELLED,
+            ]:
+                return False
+
+            task.status = TaskStatus.CANCELLED
+            task.processing_completed_at = datetime.now()
+            task.updated_at = datetime.now()
+
+            if task.queue_entry:
+                await session.delete(task.queue_entry)
+
+            await session.commit()
+            return True
+    except Exception as e:
+        logger.error(
+            f"Error in cancel_user_task for user {user_id}, task {task_id}: {e}",
+            exc_info=True,
+        )
+        return False
+
+
+def cancel_user_task_sync(user_id: int, task_id: int) -> bool:
+    """Synchronous version of cancel_user_task for use in callback handlers.
+
+    :param user_id: Internal user ID
+    :param task_id: Task ID to cancel
+    :returns: True if cancelled successfully, False otherwise
+    """
+    try:
+        import asyncio
+
+        try:
+            asyncio.get_running_loop()
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run, cancel_user_task(user_id, task_id)
+                )
+                return future.result()
+        except RuntimeError:
+            return asyncio.run(cancel_user_task(user_id, task_id))
+
+    except Exception as e:
+        logger.error(
+            f"Error in cancel_user_task_sync for user {user_id}, task {task_id}: {e}",
+            exc_info=True,
+        )
+        return False
+
+
+def pause_user_task_sync(user_id: int, task_id: int) -> bool:
+    """Synchronous version of pause_user_task for use in callback handlers.
+
+    :param user_id: Internal user ID
+    :param task_id: Task ID to pause
+    :returns: True if paused successfully, False otherwise
+    """
+    try:
+        import asyncio
+
+        try:
+            asyncio.get_running_loop()
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, pause_user_task(user_id, task_id))
+                return future.result()
+        except RuntimeError:
+            return asyncio.run(pause_user_task(user_id, task_id))
+
+    except Exception as e:
+        logger.error(
+            f"Error in pause_user_task_sync for user {user_id}, task {task_id}: {e}",
+            exc_info=True,
+        )
+        return False
+
+
+async def pause_user_task(user_id: int, task_id: int) -> bool:
+    """Pause a user task if it belongs to the user and is in pausable state.
+
+    :param user_id: Internal user ID
+    :param task_id: Task ID to pause
+    :returns: True if paused successfully, False otherwise
+    """
+    try:
+        async with SessionLocal() as session:
+            stmt = (
+                select(UserTask)
+                .options(selectinload(UserTask.queue_entry))
+                .where(UserTask.id == task_id)
+            )
+            result = await session.execute(stmt)
+            task = result.scalar_one_or_none()
+
+            if task is None or task.user_id != user_id:
+                return False
+
+            if task.status not in [TaskStatus.PROCESSING, TaskStatus.QUEUED]:
+                return False
+
+            task.status = TaskStatus.PAUSED
+            task.updated_at = datetime.now()
+
+            if task.queue_entry:
+                await session.delete(task.queue_entry)
+
+            await session.commit()
+            return True
+    except Exception as e:
+        logger.error(
+            f"Error in pause_user_task for user {user_id}, task {task_id}: {e}",
+            exc_info=True,
+        )
+        return False
+
+
+async def resume_user_task(user_id: int, task_id: int) -> bool:
+    """Resume a paused user task.
+
+    :param user_id: Internal user ID
+    :param task_id: Task ID to resume
+    :returns: True if resumed successfully, False otherwise
+    """
+    try:
+        async with SessionLocal() as session:
+            task = await session.get(UserTask, task_id)
+            if task is None or task.user_id != user_id:
+                return False
+
+            if task.status != TaskStatus.PAUSED:
+                return False
+
+            task.status = TaskStatus.QUEUED
+            task.updated_at = datetime.now()
+
+            from .queue import add_task_to_queue
+
+            await add_task_to_queue(task)
+
+            await session.commit()
+            return True
+    except Exception as e:
+        logger.error(
+            f"Error in resume_user_task for user {user_id}, task {task_id}: {e}",
+            exc_info=True,
+        )
+        return False
+
+
+def resume_user_task_sync(user_id: int, task_id: int) -> bool:
+    """Synchronous version of resume_user_task for use in callback handlers.
+
+    :param user_id: Internal user ID
+    :param task_id: Task ID to resume
+    :returns: True if resumed successfully, False otherwise
+    """
+    try:
+        import asyncio
+
+        try:
+            asyncio.get_running_loop()
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run, resume_user_task(user_id, task_id)
+                )
+                return future.result()
+        except RuntimeError:
+            return asyncio.run(resume_user_task(user_id, task_id))
+
+    except Exception as e:
+        logger.error(
+            f"Error in resume_user_task_sync for user {user_id}, task {task_id}: {e}",
+            exc_info=True,
+        )
+        return False
+
+
+async def cancel_all_user_tasks(user_id: int) -> int:
+    """Cancel all active tasks for a user.
+
+    :param user_id: Internal user ID
+    :returns: Number of tasks cancelled
+    """
+    async with SessionLocal() as session:
+        result = await session.execute(
+            select(UserTask)
+            .options(selectinload(UserTask.queue_entry))
+            .where(
+                and_(
+                    UserTask.user_id == user_id,
+                    UserTask.status.in_([TaskStatus.QUEUED, TaskStatus.PROCESSING]),
+                )
+            )
+        )
+        tasks = result.scalars().all()
+
+        cancelled_count = 0
+        for task in tasks:
+            task.status = TaskStatus.CANCELLED
+            task.processing_completed_at = datetime.now()
+            task.updated_at = datetime.now()
+
+            if task.queue_entry:
+                await session.delete(task.queue_entry)
+
+            cancelled_count += 1
+
+        await session.commit()
+        return cancelled_count

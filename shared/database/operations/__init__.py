@@ -2,6 +2,7 @@
 
 from .user import (
     get_or_create_user,
+    get_all_users,
     upgrade_user_plan,
     reset_daily_counters_if_needed,
     check_user_can_create_task,
@@ -89,11 +90,13 @@ from .integration import (
     link_analysis_to_user_task,
     get_user_task_results,
     create_user_task,
+    cleanup_orphaned_queue_entries,
 )
 
 __all__ = [
     # User operations
     "get_or_create_user",
+    "get_all_users",
     "upgrade_user_plan",
     "reset_daily_counters_if_needed",
     "check_user_can_create_task",
@@ -161,4 +164,5 @@ __all__ = [
     "link_analysis_to_user_task",
     "get_user_task_results",
     "create_user_task",
+    "cleanup_orphaned_queue_entries",
 ]

@@ -30,7 +30,7 @@ async def retry_async(
     func: Callable[[], Awaitable[T]],
     *,
     attempts: int = 3,
-    base_delay: float = 5.0,
+    base_delay: float = 1.0,  # Reduced from 5.0 to 1.0 seconds
     factor: float = 2.0,
 ) -> T:
     """Retry an async operation with exponential backoff.
@@ -39,7 +39,7 @@ async def retry_async(
                  factory defers creation of the coroutine until it is awaited,
                  avoiding "already awaited" errors on retries.
     :param attempts: Total attempts including the first call (>= 1). Default 3.
-    :param base_delay: Initial delay in seconds before the next attempt. Default 5.0.
+    :param base_delay: Initial delay in seconds before the next attempt. Default 1.0.
     :param factor: Multiplicative backoff factor after each failure. Default 2.0.
     :returns: The value returned by the successful call to ``func``.
     :raises Exception: Re-raises the last exception encountered if all attempts fail.
@@ -49,12 +49,16 @@ async def retry_async(
         async def get_value() -> int:
             return 7
 
-        value = await retry_async(lambda: get_value(), attempts=5, base_delay=0.2)
+        value = await retry_async(lambda: get_value(), attempts=5, base_delay=0.5)
         assert value == 7
     """
+    logger.debug(
+        f"Executing {func.__name__} with {attempts} attempts and {base_delay}s base delay..."
+    )
     delay = base_delay
     last_error: Optional[Exception] = None
     for attempt in range(1, attempts + 1):
+        logger.debug(f"Attempt to run {func.__name__} ({attempt}/{attempts})...")
         try:
             return await func()
         except Exception as error:  # noqa: BLE001
@@ -62,7 +66,7 @@ async def retry_async(
             if attempt >= attempts:
                 break
             logger.warning(
-                f"Retryable error on attempt {attempt}/{attempts}: {error}. Sleeping {delay:.1f}s"
+                f"Retryable error on attempt ({attempt}/{attempts}): {error}. Sleeping {delay:.1f}s"
             )
             await asyncio.sleep(delay)
             delay *= factor

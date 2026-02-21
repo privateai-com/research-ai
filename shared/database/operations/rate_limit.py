@@ -18,7 +18,6 @@ async def check_rate_limit(user_id: int, action_type: str) -> Tuple[bool, str]:
     """
     now = datetime.now()
 
-    # Rate limits by action type
     limits = {
         "task_create": {"minute": 2, "hour": 10, "day": 50},
         "command": {"minute": 10, "hour": 100, "day": 500},
@@ -39,7 +38,6 @@ async def check_rate_limit(user_id: int, action_type: str) -> Tuple[bool, str]:
         record = result.scalar_one_or_none()
 
         if record is None:
-            # Create new rate limit record
             record = RateLimitRecord(
                 user_id=user_id,
                 action_type=action_type,
@@ -51,7 +49,6 @@ async def check_rate_limit(user_id: int, action_type: str) -> Tuple[bool, str]:
             await session.commit()
             return True, "OK"
 
-        # Reset counters if time windows have passed
         if (now - record.minute_reset_at).total_seconds() >= 60:
             record.count_per_minute = 0
             record.minute_reset_at = now
@@ -64,7 +61,6 @@ async def check_rate_limit(user_id: int, action_type: str) -> Tuple[bool, str]:
             record.count_per_day = 0
             record.day_reset_at = now
 
-        # Check limits
         if record.count_per_minute >= action_limits["minute"]:
             return (
                 False,
@@ -81,7 +77,6 @@ async def check_rate_limit(user_id: int, action_type: str) -> Tuple[bool, str]:
                 f"Rate limit exceeded: {action_limits['day']} {action_type} per day",
             )
 
-        # Increment counters
         record.count_per_minute += 1
         record.count_per_hour += 1
         record.count_per_day += 1

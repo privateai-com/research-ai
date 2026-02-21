@@ -1,7 +1,7 @@
 """User management operations."""
 
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from sqlalchemy import select, func, and_
 
@@ -24,48 +24,63 @@ async def get_or_create_user(
     :param last_name: User's last name (optional)
     :returns: User instance
     """
-    async with SessionLocal() as session:
-        result = await session.execute(
-            select(User).where(User.telegram_id == telegram_id)
-        )
-        user = result.scalar_one_or_none()
-
-        if user is None:
-            # Set limits based on plan (FREE by default)
-            daily_limit = 5  # Free plan default
-            concurrent_limit = 1  # Free plan default
-
-            user = User(
-                telegram_id=telegram_id,
-                username=username,
-                first_name=first_name,
-                last_name=last_name,
-                plan=UserPlan.FREE,
-                daily_task_limit=daily_limit,
-                concurrent_task_limit=concurrent_limit,
+    try:
+        async with SessionLocal() as session:
+            result = await session.execute(
+                select(User).where(User.telegram_id == telegram_id)
             )
-            session.add(user)
-            await session.commit()
-            await session.refresh(user)
-        else:
-            # Update user info if provided
-            updated = False
-            if username and user.username != username:
-                user.username = username
-                updated = True
-            if first_name and user.first_name != first_name:
-                user.first_name = first_name
-                updated = True
-            if last_name and user.last_name != last_name:
-                user.last_name = last_name
-                updated = True
+            user = result.scalar_one_or_none()
 
-            if updated:
-                user.updated_at = datetime.now()
+            if user is None:
+                daily_limit = 5
+                concurrent_limit = 1
+
+                user = User(
+                    telegram_id=telegram_id,
+                    username=username,
+                    first_name=first_name,
+                    last_name=last_name,
+                    plan=UserPlan.FREE,
+                    daily_task_limit=daily_limit,
+                    concurrent_task_limit=concurrent_limit,
+                )
+                session.add(user)
                 await session.commit()
                 await session.refresh(user)
+            else:
+                updated = False
+                if username and user.username != username:
+                    user.username = username
+                    updated = True
+                if first_name and user.first_name != first_name:
+                    user.first_name = first_name
+                    updated = True
+                if last_name and user.last_name != last_name:
+                    user.last_name = last_name
+                    updated = True
+
+                if updated:
+                    user.updated_at = datetime.now()
+                    await session.commit()
+                    await session.refresh(user)
 
         return user
+    except Exception as e:
+        raise RuntimeError(f"Failed to get or create user {telegram_id}: {e}") from e
+
+
+async def get_all_users() -> List[User]:
+    """Get all users from the database.
+
+    :returns: List of all User instances
+    """
+    try:
+        async with SessionLocal() as session:
+            result = await session.execute(select(User))
+            users = result.scalars().all()
+            return list(users)
+    except Exception as e:
+        raise RuntimeError(f"Failed to get all users: {e}") from e
 
 
 async def upgrade_user_plan(
@@ -90,7 +105,6 @@ async def upgrade_user_plan(
         user.plan = plan
         user.plan_expires_at = expires_at
 
-        # Update limits based on plan
         if plan == UserPlan.PREMIUM:
             user.daily_task_limit = 100
             user.concurrent_task_limit = 5
@@ -112,7 +126,6 @@ async def reset_daily_counters_if_needed(user: User) -> User:
     now = datetime.now()
     if (now - user.last_daily_reset).days >= 1:
         async with SessionLocal() as session:
-            # Re-fetch to avoid stale data
             fresh_user = await session.get(User, user.id)
             if fresh_user and (now - fresh_user.last_daily_reset).days >= 1:
                 fresh_user.daily_tasks_created = 0
@@ -136,19 +149,15 @@ async def check_user_can_create_task(user: User) -> Tuple[bool, str]:
     if not user.is_active:
         return False, "Account deactivated"
 
-    # Check plan expiration for premium users
     if user.plan == UserPlan.PREMIUM and user.plan_expires_at:
         if datetime.now() > user.plan_expires_at:
             return False, "Premium plan expired"
 
-    # Reset daily counters if needed
     user = await reset_daily_counters_if_needed(user)
 
-    # Check daily limit
     if user.daily_tasks_created >= user.daily_task_limit:
         return False, f"Daily task limit reached ({user.daily_task_limit})"
 
-    # Check concurrent tasks
     async with SessionLocal() as session:
         active_count = await session.execute(
             select(func.count(UserTask.id)).where(

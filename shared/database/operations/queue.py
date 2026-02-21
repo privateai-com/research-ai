@@ -18,17 +18,14 @@ async def add_task_to_queue(task: UserTask) -> TaskQueue:
     :returns: TaskQueue entry
     """
     async with SessionLocal() as session:
-        # Get user to determine priority
         user = await session.get(User, task.user_id)
         priority = 50 if user and user.plan == UserPlan.PREMIUM else 100
 
-        # Calculate queue position
         queue_count = await session.execute(
             select(func.count(TaskQueue.id)).where(TaskQueue.task_id != task.id)
         )
         position = (queue_count.scalar_one() or 0) + 1
 
-        # Estimate start time based on queue and processing stats
         stats = await get_or_create_task_statistics()
         estimated_wait = (
             stats.median_processing_time * (position - 1) / max(stats.active_workers, 1)
@@ -46,7 +43,6 @@ async def add_task_to_queue(task: UserTask) -> TaskQueue:
         await session.commit()
         await session.refresh(queue_entry)
 
-        # Update queue positions for all tasks
         await update_queue_positions()
 
         return queue_entry
@@ -55,7 +51,6 @@ async def add_task_to_queue(task: UserTask) -> TaskQueue:
 async def update_queue_positions() -> None:
     """Update queue positions for all pending tasks based on priority and creation time."""
     async with SessionLocal() as session:
-        # Get all queued tasks ordered by priority and creation time
         result = await session.execute(
             select(TaskQueue)
             .join(UserTask)
@@ -67,7 +62,6 @@ async def update_queue_positions() -> None:
 
         for i, entry in enumerate(queue_entries, 1):
             entry.queue_position = i
-            # Update estimated start time
             stats = await get_or_create_task_statistics()
             estimated_wait = (
                 stats.median_processing_time * (i - 1) / max(stats.active_workers, 1)

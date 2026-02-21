@@ -14,6 +14,7 @@ original_import: Callable[..., Any] = None  # type: ignore
 start_time: float = 0.0
 import_times: Dict[str, float] = {}
 
+
 def traced_import(name: str, globals=None, locals=None, fromlist=(), level: int = 0):
     """
     Wrapper for the built-in import function that traces import operations.
@@ -45,12 +46,14 @@ def traced_import(name: str, globals=None, locals=None, fromlist=(), level: int 
         print(f"[{time.time() - start_time:.3f}s] ❌ Failed to import {name}: {e}")
         raise
 
+
 def setup_import_tracing() -> None:
     """Set up import tracing by replacing the built-in import function."""
     global original_import, start_time
     original_import = __builtins__.__import__
     start_time = time.time()
     __builtins__.__import__ = traced_import
+
 
 def display_import_summary() -> None:
     """
@@ -77,7 +80,6 @@ def display_import_summary() -> None:
     print("-" * 80)
 
     for i, (name, duration) in enumerate(significant_imports[-20:], 1):
-
         display_name = name if len(name) <= 62 else "..." + name[-59:]
         print(f"{i:<4} {duration:<12.3f} {display_name:<64}")
 
@@ -96,6 +98,7 @@ def display_import_summary() -> None:
     print(f"   • Average import time: {total_time / total_imports:.3f}s")
     print("=" * 80)
 
+
 def trace_module_imports(module_name: str, verbose: bool = False) -> None:
     """
     Trace imports for a specific module.
@@ -112,9 +115,7 @@ def trace_module_imports(module_name: str, verbose: bool = False) -> None:
 
     try:
         __import__(module_name)
-        print(
-            f"[{time.time() - start_time:.3f}s] Successfully imported: {module_name}"
-        )
+        print(f"[{time.time() - start_time:.3f}s] Successfully imported: {module_name}")
     except Exception as e:
         print(
             f"[{time.time() - start_time:.3f}s] ❌ Failed to import {module_name}: {e}"
@@ -123,6 +124,7 @@ def trace_module_imports(module_name: str, verbose: bool = False) -> None:
             import traceback
 
             traceback.print_exc()
+
 
 def main() -> int:
     """
@@ -175,6 +177,7 @@ Examples:
             traceback.print_exc()
         display_import_summary()
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

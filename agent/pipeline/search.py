@@ -2,7 +2,7 @@
 
 This module provides:
 - Query generation (simple heuristic without embeddings)
-- Retrieval from multiple sources (arXiv, Google Scholar, PubMed, GitHub)
+- Retrieval from multiple sources (arXiv, Google Scholar, GitHub) - PubMed temporarily disabled
 
 All functions are synchronous wrappers around sync parsers to keep things
 simple for initial integration. The pipeline orchestrator can run them in
@@ -34,13 +34,12 @@ def _normalize_query_for_arxiv(query: str) -> str:
     """
     import re
 
-    cleaned = re.sub(r"\bNEAR/\d+\b", " ", query, flags=re.IGNORECASE)
-    # Remove mentions of pdf/document which are rarely present in abstracts
+    cleaned = re.sub(r"\bNEAR/\d+\b", " ", query, re.IGNORECASE)
     cleaned = re.sub(
         r"\b(pdf|document|doc|pdf2text|pdftables)\b",
         " ",
         cleaned,
-        flags=re.IGNORECASE,
+        re.IGNORECASE,
     )
     # Avoid empty parentheses leftovers
     cleaned = re.sub(r"\(\s*\)", " ", cleaned)
@@ -119,9 +118,13 @@ def scholar_search(
     items = browser.search(query=query, max_results=max_results, start=start)
     out: List[PaperCandidate] = []
     for it in items:
+        # Use URL as identifier for Scholar results since they don't have stable IDs
+        # Format it to make it distinguishable from ArXiv IDs
+        arxiv_id = f"scholar:{it.url}" if not it.item_id else it.item_id
+
         out.append(
             PaperCandidate(
-                arxiv_id=it.item_id or it.url,
+                arxiv_id=arxiv_id,
                 title=it.title,
                 summary=it.snippet or "",
                 categories=[],
@@ -153,9 +156,13 @@ def pubmed_search(
     items = browser.search(query=query, max_results=max_results, start=start)
     out: List[PaperCandidate] = []
     for it in items:
+        # Use PMID as a unique identifier for PubMed articles
+        # Format it to make it distinguishable from ArXiv IDs
+        arxiv_id = f"pubmed:{it.item_id}" if it.item_id else it.url
+
         out.append(
             PaperCandidate(
-                arxiv_id=it.item_id or it.url,
+                arxiv_id=arxiv_id,
                 title=it.title,
                 summary=it.snippet or "",
                 categories=[],
@@ -189,9 +196,13 @@ def github_search(
     items = browser.search(query=query, max_results=max_results, start=start)
     out: List[PaperCandidate] = []
     for it in items:
+        # Use GitHub repository ID as a unique identifier
+        # Format it to make it distinguishable from ArXiv IDs
+        arxiv_id = f"github:{it.item_id}" if it.item_id else it.url
+
         out.append(
             PaperCandidate(
-                arxiv_id=it.item_id or it.url,
+                arxiv_id=arxiv_id,
                 title=it.title,
                 summary=it.snippet or "",
                 categories=[],
@@ -209,72 +220,159 @@ def github_search(
     return out
 
 
+def _generate_dedup_key(candidate: PaperCandidate) -> str:
+    """Generate a unique key for deduplication of candidates.
+
+    Uses multiple strategies to identify the same paper from different sources:
+    1. DOI (most reliable)
+    2. Source-prefixed IDs (pubmed:, github:, scholar:, arxiv:)
+    3. ArXiv ID (for ArXiv papers without prefix)
+    4. Title normalization (fallback)
+    5. URL (last resort)
+
+    :param candidate: Paper candidate to generate key for
+    :returns: Unique deduplication key
+    """
+    # Strategy 1: Use DOI if available (most reliable)
+    if candidate.doi and candidate.doi.strip():
+        return f"doi:{candidate.doi.strip().lower()}"
+
+    # Strategy 2: Use source-prefixed IDs (already formatted by search functions)
+    if candidate.arxiv_id and candidate.arxiv_id.startswith(
+        ("pubmed:", "github:", "scholar:")
+    ):
+        return candidate.arxiv_id.lower()
+
+    # Strategy 3: Use ArXiv ID if it looks like a real ArXiv ID (not a URL)
+    if (
+        candidate.arxiv_id
+        and not candidate.arxiv_id.startswith(("http://", "https://"))
+        and ("." in candidate.arxiv_id or candidate.arxiv_id.isdigit())
+    ):
+        return f"arxiv:{candidate.arxiv_id.strip().lower()}"
+
+    # Strategy 4: Use normalized title for papers that might be the same
+    if candidate.title and candidate.title.strip():
+        # Normalize title: lowercase, remove punctuation, take first 8 words
+        import re
+
+        normalized_title = re.sub(r"[^\w\s]", "", candidate.title.lower().strip())
+        normalized_title = " ".join(normalized_title.split()[:8])  # First 8 words
+        if normalized_title:
+            return f"title:{normalized_title[:50]}"
+
+    # Strategy 5: Use URL as last resort
+    if candidate.abs_url:
+        return f"url:{candidate.abs_url.strip().lower()}"
+
+    # Fallback: use arxiv_id even if it's a URL
+    return f"fallback:{candidate.arxiv_id.strip().lower()}"
+
+
 def collect_candidates(
     task: PipelineTask, queries: Iterable[GeneratedQuery], per_query_limit: int = 50
 ) -> List[PaperCandidate]:
-    """Run source-specific search per query and collect unique candidates.
+    """Run source-specific search per query and collect unique candidates with parallel processing.
 
     :param task: The pipeline task providing categories and other context.
     :param queries: Iterable of :class:`GeneratedQuery` with per-query source.
     :param per_query_limit: Max results retrieved for each query (default 50).
     :returns: Unique candidates from all queries.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     logger = get_logger(__name__)
     seen: set[str] = set()
     collected: List[PaperCandidate] = []
+    queries_list = list(queries)
 
-    for gq in queries:
+    def search_single_source(gq: GeneratedQuery) -> List[PaperCandidate]:
+        """Search a single source for the given query."""
         q = gq.query_text
         src = gq.source
         logger.debug(f"Collecting candidates for query: {q} from {src}")
 
-        if src == "arxiv":
-            page = arxiv_search(
-                query=q,
-                categories=task.categories,
-                max_results=per_query_limit,
-                start=0,
-            )
-        elif src == "scholar":
-            page = scholar_search(query=q, max_results=per_query_limit, start=0)
-        elif src == "pubmed":
-            page = pubmed_search(query=q, max_results=per_query_limit, start=0)
-        elif src == "github":
-            page = github_search(query=q, max_results=per_query_limit, start=0)
-        elif src == "semantic_scholar":
-            from agent.browsing.manual.sources.semantic_scholar import SemanticScholarBrowser
-            browser = SemanticScholarBrowser()
-            ss_items = browser.search(q, max_results=per_query_limit)
-            page = [
-                PaperCandidate(
-                    arxiv_id=it.item_id or it.url,
-                    title=it.title,
-                    summary=it.snippet or "",
-                    categories=[],
-                    published=None,
-                    updated=None,
-                    pdf_url=None,
-                    abs_url=it.url,
-                    journal_ref=None,
-                    doi=(it.extra or {}).get("doi"),
-                    comment=None,
-                    primary_category=None,
+        try:
+            if src == "arxiv":
+                page = arxiv_search(
+                    query=q,
+                    categories=task.categories,
+                    max_results=per_query_limit,
+                    start=0,
                 )
-                for it in ss_items
-            ]
-        else:
-            logger.warning(f"Unknown source '{src}', skipping query")
-            continue
+            elif src == "scholar":
+                page = scholar_search(query=q, max_results=per_query_limit, start=0)
+            elif src == "pubmed":
+                logger.warning(
+                    f"PubMed search temporarily disabled, skipping query: {q}"
+                )
+                return []
+            elif src == "github":
+                page = github_search(query=q, max_results=per_query_limit, start=0)
+            elif src == "semantic_scholar":
+                from agent.browsing.manual.sources.semantic_scholar import SemanticScholarBrowser
+                browser = SemanticScholarBrowser()
+                ss_items = browser.search(q, max_results=per_query_limit)
+                page = [
+                    PaperCandidate(
+                        arxiv_id=it.item_id or it.url,
+                        title=it.title,
+                        summary=it.snippet or "",
+                        categories=[],
+                        published=None,
+                        updated=None,
+                        pdf_url=None,
+                        abs_url=it.url,
+                        journal_ref=None,
+                        doi=(it.extra or {}).get("doi"),
+                        comment=None,
+                        primary_category=None,
+                    )
+                    for it in ss_items
+                ]
+            else:
+                logger.warning(f"Unknown source '{src}', skipping query")
+                return []
 
-        for c in page:
-            if c.arxiv_id in seen:
-                continue
-            seen.add(c.arxiv_id)
-            collected.append(c)
-        logger.debug(f"Collected {len(page)} items for query")
+            logger.debug(f"Collected {len(page)} items for query from {src}")
+            return page
+        except Exception as e:
+            logger.error(f"Error searching {src} with query '{q}': {e}")
+            return []
 
-    logger.info(f"Total unique candidates collected: {len(collected)}")
+    # Use ThreadPoolExecutor for I/O bound operations (network requests)
+    max_workers = min(len(queries_list), 8)  # Limit concurrent requests
+    logger.debug(f"Running {len(queries_list)} searches with {max_workers} workers")
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all search tasks
+        future_to_query = {
+            executor.submit(search_single_source, gq): gq for gq in queries_list
+        }
+
+        # Collect results as they complete
+        for future in as_completed(future_to_query):
+            gq = future_to_query[future]
+            try:
+                page = future.result()
+                for c in page:
+                    # Generate deduplication key using improved strategy
+                    dedup_key = _generate_dedup_key(c)
+                    if dedup_key in seen:
+                        logger.debug(
+                            f"Skipping duplicate candidate: {c.title[:50]}... (key: {dedup_key})"
+                        )
+                        continue
+                    seen.add(dedup_key)
+                    collected.append(c)
+            except Exception as e:
+                logger.error(
+                    f"Search task failed for query '{gq.query_text}' from {gq.source}: {e}"
+                )
+
+    logger.info(
+        f"Total unique candidates collected: {len(collected)} from {len(queries_list)} parallel searches"
+    )
     return collected
 
 
